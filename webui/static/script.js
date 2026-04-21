@@ -77058,6 +77058,42 @@ async function loadDiscoverSyncPlaylists() {
             renderDiscoverSyncCard(playlist, container, data.source_label || data.source);
         });
 
+        // Also fetch ListenBrainz playlists and add them
+        try {
+            const lbRes = await fetch('/api/discover/listenbrainz/created-for');
+            if (lbRes.ok) {
+                const lbData = await lbRes.json();
+                if (lbData.success && lbData.playlists && lbData.playlists.length > 0) {
+                    lbData.playlists.forEach(p => {
+                        const pl = p.playlist || p;
+                        const identifier = pl.identifier || '';
+                        const mbid = identifier.split('/').pop();
+                        const title = pl.title || 'ListenBrainz Playlist';
+                        const trackCount = pl.track_count || (pl.track || []).length;
+                        // Determine icon from title
+                        let icon = '🧠';
+                        if (title.toLowerCase().includes('jam')) icon = '🎸';
+                        else if (title.toLowerCase().includes('explor')) icon = '🔭';
+
+                        renderDiscoverSyncCard({
+                            type: `listenbrainz_${mbid}`,
+                            name: title,
+                            description: '',
+                            icon: icon,
+                            track_count: trackCount,
+                            sync_status: 'never',
+                            last_synced: null,
+                            auto_update: false,
+                            virtual_id: `discover_listenbrainz_${mbid}`,
+                            _lb_mbid: mbid,
+                        }, container, 'ListenBrainz');
+                    });
+                }
+            }
+        } catch (lbErr) {
+            console.warn('Could not load ListenBrainz playlists for discover sync tab:', lbErr);
+        }
+
         discoverSyncPlaylistsLoaded = true;
     } catch (error) {
         console.error('Error loading discover sync playlists:', error);
@@ -77156,20 +77192,10 @@ async function syncDiscoverPlaylistFromTab(playlistType, playlistName) {
     try {
         let tracksResponse;
 
-        if (playlistType === 'release_radar') {
-            tracksResponse = await fetch('/api/discover/release-radar');
-        } else if (playlistType === 'discovery_weekly') {
-            tracksResponse = await fetch('/api/discover/discovery-weekly');
-        } else if (playlistType === 'seasonal_playlist') {
-            tracksResponse = await fetch('/api/discover/seasonal');
-        } else if (playlistType === 'popular_picks') {
-            tracksResponse = await fetch('/api/discover/personalized/popular-picks');
-        } else if (playlistType === 'hidden_gems') {
-            tracksResponse = await fetch('/api/discover/personalized/hidden-gems');
-        } else if (playlistType === 'discovery_shuffle') {
-            tracksResponse = await fetch('/api/discover/personalized/discovery-shuffle');
-        } else if (playlistType === 'familiar_favorites') {
-            tracksResponse = await fetch('/api/discover/personalized/familiar-favorites');
+        // Use unified URL helper (handles ListenBrainz + standard discover types)
+        const apiUrl = _discoverPlaylistApiUrl(playlistType);
+        if (apiUrl) {
+            tracksResponse = await fetch(apiUrl);
         }
 
         let tracks = [];
@@ -77278,6 +77304,11 @@ function pollDiscoverSyncFromTab(playlistType, virtualPlaylistId, playlistName) 
  * Map a discover playlist type to its API endpoint for fetching tracks.
  */
 function _discoverPlaylistApiUrl(playlistType) {
+    // ListenBrainz playlists
+    if (playlistType.startsWith('listenbrainz_')) {
+        const mbid = playlistType.replace('listenbrainz_', '');
+        return `/api/discover/listenbrainz/playlist/${mbid}`;
+    }
     const map = {
         release_radar: '/api/discover/release-radar',
         discovery_weekly: '/api/discover/discovery-weekly',

@@ -45955,7 +45955,8 @@ def _get_lb_discover_playlists(playlist_type):
                 "title": playlist['title'],
                 "creator": playlist['creator'],
                 "annotation": playlist.get('annotation', {}),
-                "track": []
+                "track": [],
+                "track_count": playlist.get('track_count', 0),
             }
         })
 
