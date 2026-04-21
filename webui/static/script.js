@@ -77062,6 +77062,16 @@ async function loadDiscoverSyncPlaylists() {
 
         // Also fetch ListenBrainz playlists and add them
         try {
+            // Fetch saved auto-update settings so LB toggles persist across restarts
+            let lbAutoSettings = {};
+            try {
+                const settingsRes = await fetch('/api/discover/auto-update');
+                if (settingsRes.ok) {
+                    const settingsData = await settingsRes.json();
+                    if (settingsData.success) lbAutoSettings = settingsData.settings || {};
+                }
+            } catch (_) {}
+
             const lbRes = await fetch('/api/discover/listenbrainz/created-for');
             if (lbRes.ok) {
                 const lbData = await lbRes.json();
@@ -77077,15 +77087,16 @@ async function loadDiscoverSyncPlaylists() {
                         if (title.toLowerCase().includes('jam')) icon = '🎸';
                         else if (title.toLowerCase().includes('explor')) icon = '🔭';
 
+                        const lbType = `listenbrainz_${mbid}`;
                         renderDiscoverSyncCard({
-                            type: `listenbrainz_${mbid}`,
+                            type: lbType,
                             name: title,
                             description: '',
                             icon: icon,
                             track_count: trackCount,
                             sync_status: 'never',
                             last_synced: null,
-                            auto_update: false,
+                            auto_update: !!lbAutoSettings[lbType],
                             virtual_id: `discover_listenbrainz_${mbid}`,
                             _lb_mbid: mbid,
                         }, container, 'ListenBrainz');
