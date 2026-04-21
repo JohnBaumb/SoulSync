@@ -38688,6 +38688,13 @@ def _run_sync_task(playlist_id, playlist_name, tracks_json, automation_id=None, 
         except (IndexError, ValueError):
             pass
     else:
+        # Derive source_page from playlist_id prefix
+        if playlist_id.startswith('discover_') or playlist_id.startswith('seasonal_'):
+            _source_page = 'discover'
+        elif playlist_id.startswith('listenbrainz_') or playlist_id.startswith('discover_listenbrainz_'):
+            _source_page = 'discover'
+        else:
+            _source_page = 'sync'
         _record_sync_history_start(
             batch_id=sync_batch_id,
             playlist_id=playlist_id,
@@ -38697,7 +38704,7 @@ def _run_sync_task(playlist_id, playlist_name, tracks_json, automation_id=None, 
             album_context=None,
             artist_context=None,
             playlist_folder_mode=False,
-            source_page='sync'
+            source_page=_source_page
         )
 
     try:

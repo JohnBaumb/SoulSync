@@ -77230,31 +77230,33 @@ async function syncDiscoverPlaylistFromTab(playlistType, playlistName) {
 
         const virtualPlaylistId = `discover_${playlistType}`;
 
-        const syncResponse = await fetch('/api/sync/start', {
+        // Use the download batch endpoint directly so the batch is labeled
+        // as "Discover" instead of going through sync → wishlist → "Wishlist" batch
+        const batchResponse = await fetch(`/api/playlists/${virtualPlaylistId}/start-missing-process`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                playlist_id: virtualPlaylistId,
-                playlist_name: playlistName,
                 tracks: syncTracks,
-                source: 'discover'
+                playlist_name: playlistName,
+                force_download_all: true
             })
         });
 
-        const result = await syncResponse.json();
+        const result = await batchResponse.json();
         if (result.success) {
-            showToast(`Syncing ${playlistName} to your library...`, 'info');
+            showToast(`Downloading ${playlistName} (${syncTracks.length} tracks)...`, 'info');
             const card = document.getElementById(`discover-sync-card-${playlistType}`);
             if (card) {
                 const statusEl = card.querySelector('.discover-sync-status');
                 if (statusEl) {
                     statusEl.className = 'discover-sync-status syncing';
-                    statusEl.textContent = 'Syncing...';
+                    statusEl.textContent = 'Downloading...';
                 }
             }
-            pollDiscoverSyncFromTab(playlistType, virtualPlaylistId, playlistName);
+            // Poll the download batch status
+            pollDiscoverBatchFromTab(playlistType, result.batch_id, playlistName);
         } else {
-            showToast(`Sync failed: ${result.error || 'Unknown error'}`, 'error');
+            showToast(`Download failed: ${result.error || 'Unknown error'}`, 'error');
             if (btn) { btn.disabled = false; btn.textContent = '\u27f3 Sync Now'; }
         }
     } catch (error) {
@@ -77299,6 +77301,44 @@ function pollDiscoverSyncFromTab(playlistType, virtualPlaylistId, playlistName) 
             clearInterval(pollInterval);
         }
     }, 2000);
+}
+
+function pollDiscoverBatchFromTab(playlistType, batchId, playlistName) {
+    const pollInterval = setInterval(async () => {
+        try {
+            const resp = await fetch(`/api/playlists/${batchId}/download_status`);
+            if (!resp.ok) { clearInterval(pollInterval); return; }
+            const data = await resp.json();
+            const phase = data.phase || data.status;
+
+            if (phase === 'complete' || phase === 'error' || phase === 'cancelled') {
+                clearInterval(pollInterval);
+                const btn = document.getElementById(`discover-sync-btn-${playlistType}`);
+                if (btn) { btn.disabled = false; btn.textContent = '\u27f3 Sync Now'; }
+
+                const card = document.getElementById(`discover-sync-card-${playlistType}`);
+                if (card) {
+                    const statusEl = card.querySelector('.discover-sync-status');
+                    if (statusEl) {
+                        statusEl.className = `discover-sync-status ${phase === 'complete' ? 'synced' : 'not-synced'}`;
+                        statusEl.textContent = phase === 'complete' ? 'Synced' : (phase === 'cancelled' ? 'Cancelled' : 'Failed');
+                    }
+                    const lastSyncedEl = card.querySelector('.discover-sync-last-synced');
+                    if (lastSyncedEl && phase === 'complete') {
+                        lastSyncedEl.textContent = 'Last synced just now';
+                    }
+                }
+
+                if (phase === 'complete') {
+                    showToast(`${playlistName} download complete!`, 'success');
+                } else if (phase !== 'cancelled') {
+                    showToast(`${playlistName} download failed`, 'error');
+                }
+            }
+        } catch (error) {
+            clearInterval(pollInterval);
+        }
+    }, 3000);
 }
 
 /**
