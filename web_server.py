@@ -30919,9 +30919,16 @@ def clear_completed_downloads():
             for tid in task_ids_to_remove:
                 del download_tasks[tid]
                 cleared += 1
-            # Also clean up empty batches
+            # Also clean up empty batches (but not those still actively processing)
+            active_phases = {'analysis', 'downloading', 'queued'}
             empty_batches = []
             for bid, batch in download_batches.items():
+                # Never remove batches that are still actively working
+                if batch.get('phase') in active_phases:
+                    # Still prune cleared tasks from queue
+                    remaining = [t for t in batch.get('queue', []) if t in download_tasks]
+                    batch['queue'] = remaining
+                    continue
                 remaining = [t for t in batch.get('queue', []) if t in download_tasks]
                 if not remaining:
                     empty_batches.append(bid)
