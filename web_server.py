@@ -7571,6 +7571,52 @@ def apply_quality_preset(preset_name):
 # == END QUALITY PROFILE API   ==
 # ===============================
 
+_shares_status_cache = {'data': None, 'timestamp': 0}
+_SHARES_STATUS_TTL = 30  # seconds
+
+@app.route('/api/soulseek/shares-status', methods=['GET'])
+def soulseek_shares_status():
+    """Return Soulseek sharing health: connection state, configured shares, file counts."""
+    try:
+        if soulseek_client is None:
+            return jsonify({
+                'connected': False,
+                'configured': False,
+                'directories': 0,
+                'files': 0,
+                'scanning': False,
+                'error': 'not_configured',
+            })
+
+        now = time.time()
+        force = request.args.get('force', '').lower() in ('1', 'true')
+        cache = _shares_status_cache
+
+        if not force and cache['data'] and (now - cache['timestamp']) < _SHARES_STATUS_TTL:
+            return jsonify(cache['data'])
+
+        connected = run_async(soulseek_client.check_connection())
+        shares = run_async(soulseek_client.get_shares_status())
+
+        result = {
+            'connected': connected,
+            'configured': shares.get('configured', False),
+            'directories': shares.get('directories', 0),
+            'files': shares.get('files', 0),
+            'scanning': shares.get('scanning', False),
+            'error': shares.get('error'),
+            'slskd_url': soulseek_client.base_url,
+        }
+
+        cache['data'] = result
+        cache['timestamp'] = now
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Error fetching soulseek shares status: {e}")
+        return jsonify({'connected': False, 'error': str(e)}), 500
+
+
 @app.route('/api/detect-soulseek', methods=['POST'])
 def detect_soulseek_endpoint():
     logger.info("Received auto-detect request for slskd")

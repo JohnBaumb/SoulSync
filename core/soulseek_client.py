@@ -1504,6 +1504,66 @@ class SoulseekClient:
         logger.info(f"Downloading: {best_result.filename} ({quality_info}) from {best_result.username}")
         return await self.download(best_result.username, best_result.filename, best_result.size)
     
+    async def get_shares_status(self) -> Dict[str, Any]:
+        """Get sharing status from slskd: configured shares, directory/file counts."""
+        result = {
+            'configured': False,
+            'directories': 0,
+            'files': 0,
+            'scanning': False,
+            'error': None,
+        }
+
+        if not self.base_url:
+            result['error'] = 'not_configured'
+            return result
+
+        try:
+            # GET /api/v0/shares returns list of configured share hosts
+            shares = await self._make_request('GET', 'shares')
+            if shares is None:
+                result['error'] = 'unreachable'
+                return result
+
+            # shares is a list of host objects, each with 'directories'
+            if isinstance(shares, list) and len(shares) > 0:
+                result['configured'] = True
+            else:
+                return result
+
+            # GET /api/v0/shares/contents returns all shared dirs with file lists
+            contents = await self._make_request('GET', 'shares/contents')
+            if contents is None:
+                # Shares are configured but contents unavailable (may be scanning)
+                result['scanning'] = True
+                return result
+
+            if isinstance(contents, list):
+                result['directories'] = len(contents)
+                total_files = 0
+                for directory in contents:
+                    if isinstance(directory, dict):
+                        files = directory.get('files') or directory.get('Files') or []
+                        total_files += len(files) if isinstance(files, list) else 0
+                result['files'] = total_files
+            elif isinstance(contents, dict):
+                # Some slskd versions may nest under a key
+                dirs = contents.get('directories') or contents.get('Directories') or []
+                result['directories'] = len(dirs) if isinstance(dirs, list) else 0
+                total_files = 0
+                items = dirs if isinstance(dirs, list) else []
+                for directory in items:
+                    if isinstance(directory, dict):
+                        files = directory.get('files') or directory.get('Files') or []
+                        total_files += len(files) if isinstance(files, list) else 0
+                result['files'] = total_files
+
+        except Exception as e:
+            logger.error(f"Error fetching shares status: {e}")
+            result['error'] = str(e)
+
+        return result
+
     async def check_connection(self) -> bool:
         """Check if slskd is running and connected to the Soulseek network"""
         if not self.base_url:

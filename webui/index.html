@@ -4551,6 +4551,14 @@
 
                                 <!-- Soulseek Settings (shown when soulseek is active source) -->
                                 <div id="soulseek-settings-container" style="display: none;">
+                                    <!-- Soulseek Shares Status Card -->
+                                    <div id="soulseek-shares-status" class="soulseek-shares-card soulseek-shares-loading" style="margin-bottom: 14px;">
+                                        <div class="soulseek-shares-card-content">
+                                            <span class="soulseek-shares-icon">⏳</span>
+                                            <span class="soulseek-shares-text">Checking sharing status…</span>
+                                        </div>
+                                        <button class="soulseek-shares-refresh-btn" onclick="checkSoulseekSharesStatus(true)" title="Refresh status">↻ Check Status</button>
+                                    </div>
                                     <div class="form-group">
                                         <label>slskd URL:</label>
                                         <div class="path-input-group">

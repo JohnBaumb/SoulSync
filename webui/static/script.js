@@ -6505,6 +6505,9 @@ function updateDownloadSourceUI() {
     if (activeSources.has('hifi')) {
         testHiFiConnection();
     }
+    if (activeSources.has('soulseek')) {
+        checkSoulseekSharesStatus();
+    }
 }
 
 function updateHybridSecondaryOptions() {
@@ -6535,6 +6538,84 @@ function updateHybridSecondaryOptions() {
 
     // Refresh source-specific settings visibility based on new primary/secondary
     updateDownloadSourceUI();
+}
+
+// ===============================
+// SOULSEEK SHARES STATUS
+// ===============================
+
+let _sharesStatusPending = false;
+
+async function checkSoulseekSharesStatus(force = false) {
+    const card = document.getElementById('soulseek-shares-status');
+    if (!card) return;
+    if (_sharesStatusPending && !force) return;
+    _sharesStatusPending = true;
+
+    // Show loading state
+    card.className = 'soulseek-shares-card soulseek-shares-loading';
+    card.querySelector('.soulseek-shares-icon').textContent = '⏳';
+    card.querySelector('.soulseek-shares-text').textContent = 'Checking sharing status…';
+
+    try {
+        const url = '/api/soulseek/shares-status' + (force ? '?force=1' : '');
+        const resp = await fetch(url);
+        const data = await resp.json();
+
+        const icon = card.querySelector('.soulseek-shares-icon');
+        const text = card.querySelector('.soulseek-shares-text');
+
+        // Remove any previous setup details
+        const oldSetup = card.querySelector('.soulseek-shares-setup');
+        if (oldSetup) oldSetup.remove();
+
+        if (data.error === 'not_configured') {
+            card.className = 'soulseek-shares-card soulseek-shares-error';
+            icon.textContent = '⚠️';
+            text.textContent = 'slskd not configured — enter the URL and API key below.';
+        } else if (data.error === 'unreachable' || (!data.connected && !data.error)) {
+            card.className = 'soulseek-shares-card soulseek-shares-error';
+            icon.textContent = '🔌';
+            text.textContent = 'Cannot reach slskd — is it running?';
+        } else if (data.error) {
+            card.className = 'soulseek-shares-card soulseek-shares-error';
+            icon.textContent = '❌';
+            text.textContent = 'Error checking shares: ' + data.error;
+        } else if (data.scanning) {
+            card.className = 'soulseek-shares-card soulseek-shares-loading';
+            icon.textContent = '🔄';
+            text.textContent = 'Shares configured — scan in progress…';
+        } else if (!data.configured || data.files === 0) {
+            card.className = 'soulseek-shares-card soulseek-shares-warning';
+            icon.textContent = '⚠️';
+            text.innerHTML = '<strong>No files shared</strong> — Soulseek may ban your account.';
+            // Append collapsible setup instructions
+            const slskdUrl = data.slskd_url || '';
+            const webUiLink = slskdUrl ? `<a href="${slskdUrl}" target="_blank" rel="noopener">slskd web UI</a>` : 'the slskd web UI';
+            const setup = document.createElement('div');
+            setup.className = 'soulseek-shares-setup';
+            setup.innerHTML = `<details><summary>How to set up shares</summary>
+                <ol>
+                    <li>Mount or map your music folder so slskd can access it (Docker: add a volume mount).</li>
+                    <li>Open ${webUiLink} → <em>Options → Shares</em> and add the folder.</li>
+                    <li>Wait for the scan to finish, then click <strong>Check Status</strong> above.</li>
+                </ol></details>`;
+            card.appendChild(setup);
+        } else {
+            card.className = 'soulseek-shares-card soulseek-shares-healthy';
+            icon.textContent = '✅';
+            const dirs = data.directories === 1 ? '1 directory' : `${data.directories.toLocaleString()} directories`;
+            const files = data.files === 1 ? '1 file' : `${data.files.toLocaleString()} files`;
+            text.textContent = `Connected — ${dirs} — ${files} shared`;
+        }
+    } catch (e) {
+        console.error('Shares status check failed', e);
+        card.className = 'soulseek-shares-card soulseek-shares-error';
+        card.querySelector('.soulseek-shares-icon').textContent = '❌';
+        card.querySelector('.soulseek-shares-text').textContent = 'Failed to check sharing status.';
+    } finally {
+        _sharesStatusPending = false;
+    }
 }
 
 // ===============================
