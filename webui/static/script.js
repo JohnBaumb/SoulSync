@@ -77076,31 +77076,63 @@ async function loadDiscoverSyncPlaylists() {
             if (lbRes.ok) {
                 const lbData = await lbRes.json();
                 if (lbData.success && lbData.playlists && lbData.playlists.length > 0) {
-                    lbData.playlists.forEach(p => {
+                    // Fetch sync history once for all LB playlists
+                    let historyEntries = [];
+                    try {
+                        const histRes = await fetch('/api/sync/history?source=discover&limit=50');
+                        if (histRes.ok) {
+                            const histData = await histRes.json();
+                            historyEntries = histData.entries || [];
+                        }
+                    } catch (_) {}
+
+                    // Deduplicate by base name — only show the latest of each type
+                    const seen = new Map();
+                    for (const p of lbData.playlists) {
                         const pl = p.playlist || p;
+                        const rawTitle = pl.title || 'ListenBrainz Playlist';
+                        // Strip ", week of YYYY-MM-DD ..." suffix for a stable display name
+                        const baseName = rawTitle.replace(/,\s*week of .+$/i, '').trim();
+                        // Keep only the first (latest) for each base name
+                        if (!seen.has(baseName)) seen.set(baseName, { pl, rawTitle, baseName });
+                    }
+
+                    for (const { pl, rawTitle, baseName } of seen.values()) {
                         const identifier = pl.identifier || '';
                         const mbid = identifier.split('/').pop();
-                        const title = pl.title || 'ListenBrainz Playlist';
                         const trackCount = pl.track_count || (pl.track || []).length;
                         // Determine icon from title
                         let icon = '🧠';
-                        if (title.toLowerCase().includes('jam')) icon = '🎸';
-                        else if (title.toLowerCase().includes('explor')) icon = '🔭';
+                        if (rawTitle.toLowerCase().includes('jam')) icon = '🎸';
+                        else if (rawTitle.toLowerCase().includes('explor')) icon = '🔭';
 
                         const lbType = `listenbrainz_${mbid}`;
+
+                        // Check sync history for this playlist by matching the base name
+                        let syncStatus = 'never';
+                        let lastSynced = null;
+                        for (const entry of historyEntries) {
+                            const eName = entry.playlist_name || '';
+                            if (eName === baseName || eName.startsWith(baseName)) {
+                                syncStatus = 'synced';
+                                lastSynced = entry.completed_at || entry.started_at || entry.created_at;
+                                break;
+                            }
+                        }
+
                         renderDiscoverSyncCard({
                             type: lbType,
-                            name: title,
+                            name: baseName,
                             description: '',
                             icon: icon,
                             track_count: trackCount,
-                            sync_status: 'never',
-                            last_synced: null,
+                            sync_status: syncStatus,
+                            last_synced: lastSynced,
                             auto_update: !!lbAutoSettings[lbType],
                             virtual_id: `discover_listenbrainz_${mbid}`,
                             _lb_mbid: mbid,
                         }, container, 'ListenBrainz');
-                    });
+                    }
                 }
             }
         } catch (lbErr) {
@@ -77235,21 +77267,22 @@ async function syncDiscoverPlaylistFromTab(playlistType, playlistName) {
                 name: track.track_name || track.name || '',
                 artists: [track.artist_name || 'Unknown Artist'],
                 album: track.album_name || '',
-                duration_ms: track.duration_ms || 0
+                duration_ms: track.duration_ms || 0,
+                image_url: track.album_cover_url || track.image_url || ''
             };
         });
 
         const virtualPlaylistId = `discover_${playlistType}`;
 
         // Use the download batch endpoint directly so the batch is labeled
-        // as "Discover" instead of going through sync → wishlist → "Wishlist" batch
+        // as "Discover" instead of going through sync → wishlist → "Wishlist" batch.
+        // Omit force_download_all so it checks the library first and only downloads missing tracks.
         const batchResponse = await fetch(`/api/playlists/${virtualPlaylistId}/start-missing-process`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 tracks: syncTracks,
-                playlist_name: playlistName,
-                force_download_all: true
+                playlist_name: playlistName
             })
         });
 
