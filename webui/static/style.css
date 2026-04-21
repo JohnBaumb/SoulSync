@@ -59109,12 +59109,12 @@ body.reduce-effects *::after {
 .discover-sync-card {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
-    margin: 8px 6px;
-    padding: 16px 20px;
+    border-radius: 12px;
+    margin: 4px 6px;
+    padding: 10px 16px;
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     transition: all 0.25s ease;
 }
 
@@ -59124,15 +59124,15 @@ body.reduce-effects *::after {
 }
 
 .discover-sync-card-icon {
-    font-size: 32px;
+    font-size: 24px;
     flex-shrink: 0;
-    width: 48px;
-    height: 48px;
+    width: 38px;
+    height: 38px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
+    border-radius: 10px;
 }
 
 .discover-sync-card-info {
@@ -59141,23 +59141,23 @@ body.reduce-effects *::after {
 }
 
 .discover-sync-card-name {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     color: #fff;
-    margin-bottom: 2px;
+    margin-bottom: 1px;
 }
 
 .discover-sync-card-desc {
-    font-size: 12.5px;
+    font-size: 11.5px;
     color: rgba(255, 255, 255, 0.45);
-    margin-bottom: 6px;
+    margin-bottom: 3px;
 }
 
 .discover-sync-card-meta {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: 11px;
     color: rgba(255, 255, 255, 0.4);
 }
 
