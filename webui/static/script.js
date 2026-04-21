@@ -77028,6 +77028,8 @@ window.adlToggleBatchPanel = adlToggleBatchPanel;
 // ── SoulSync Discover Sync Tab ─────────────────────────────────────────
 
 async function loadDiscoverSyncPlaylists() {
+    if (discoverSyncPlaylistsLoaded) return;
+    discoverSyncPlaylistsLoaded = true;
     const container = document.getElementById('discover-sync-playlist-container');
     if (!container) return;
     container.innerHTML = '<div class="playlist-placeholder">Loading Discover playlists...</div>';
@@ -77094,7 +77096,6 @@ async function loadDiscoverSyncPlaylists() {
             console.warn('Could not load ListenBrainz playlists for discover sync tab:', lbErr);
         }
 
-        discoverSyncPlaylistsLoaded = true;
     } catch (error) {
         console.error('Error loading discover sync playlists:', error);
         container.innerHTML = '<div class="playlist-placeholder">Error loading Discover playlists.</div>';
