@@ -31824,7 +31824,8 @@ def _detect_sync_source(playlist_id):
         ('youtube_', 'youtube'), ('beatport_', 'beatport'),
         ('tidal_', 'tidal'), ('deezer_', 'deezer'), ('listenbrainz_', 'listenbrainz'),
         ('spotify_public_', 'spotify_public'), ('discover_album_', 'discover'),
-        ('seasonal_album_', 'discover'), ('library_redownload_', 'library'),
+        ('seasonal_album_', 'discover'), ('discover_', 'discover'),
+        ('library_redownload_', 'library'),
         ('issue_download_', 'library'), ('artist_album_', 'spotify'),
         ('enhanced_search_', 'spotify'), ('spotify_library_', 'spotify'),
         ('beatport_release_', 'beatport'), ('beatport_chart_', 'beatport'),
@@ -32645,6 +32646,8 @@ def start_missing_tracks_process(playlist_id):
         _source_page = 'wishlist'
     elif is_album_download:
         _source_page = 'album'
+    elif playlist_id.startswith('discover_') or playlist_id.startswith('seasonal_'):
+        _source_page = 'discover'
     elif playlist_id.startswith('youtube_'):
         _source_page = 'sync'
     else:

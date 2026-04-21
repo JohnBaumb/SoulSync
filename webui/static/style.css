@@ -59331,3 +59331,41 @@ body.reduce-effects *::after {
         justify-content: flex-end;
     }
 }
+
+/* Discover playlist modal extras */
+.mirrored-modal-hero-icon.discover {
+    background: linear-gradient(135deg, rgba(167, 139, 250, 0.2) 0%, rgba(124, 58, 237, 0.12) 100%);
+    border-color: rgba(167, 139, 250, 0.3);
+    box-shadow: 0 8px 24px rgba(167, 139, 250, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    color: #a78bfa;
+}
+
+.discover-modal-track-img {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    object-fit: cover;
+    vertical-align: middle;
+}
+
+.discover-modal-track-img-placeholder {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.track-cover {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    flex-shrink: 0;
+}
+
+#discover-playlist-modal .mirrored-track-header,
+#discover-playlist-modal .mirrored-track-row {
+    grid-template-columns: 40px 40px 1.4fr 1.2fr 1fr 56px;
+}

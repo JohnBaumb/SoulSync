@@ -77117,6 +77117,16 @@ function renderDiscoverSyncCard(playlist, container) {
         </div>
     `;
 
+    // Make the icon + info area clickable to view tracks
+    if (!isEmpty) {
+        const clickArea = card.querySelector('.discover-sync-card-info');
+        const iconArea = card.querySelector('.discover-sync-card-icon');
+        [clickArea, iconArea].forEach(el => {
+            el.style.cursor = 'pointer';
+            el.addEventListener('click', () => openDiscoverPlaylistModal(playlist.type, playlist.name, playlist.icon));
+        });
+    }
+
     container.appendChild(card);
 }
 
@@ -77265,4 +77275,111 @@ function pollDiscoverSyncFromTab(playlistType, virtualPlaylistId, playlistName) 
             clearInterval(pollInterval);
         }
     }, 2000);
+}
+
+/**
+ * Map a discover playlist type to its API endpoint for fetching tracks.
+ */
+function _discoverPlaylistApiUrl(playlistType) {
+    const map = {
+        release_radar: '/api/discover/release-radar',
+        discovery_weekly: '/api/discover/discovery-weekly',
+        seasonal_playlist: '/api/discover/seasonal',
+        popular_picks: '/api/discover/personalized/popular-picks',
+        hidden_gems: '/api/discover/personalized/hidden-gems',
+        discovery_shuffle: '/api/discover/personalized/discovery-shuffle',
+        familiar_favorites: '/api/discover/personalized/familiar-favorites',
+    };
+    return map[playlistType] || null;
+}
+
+/**
+ * Open a modal showing all tracks in a Discover playlist (mirrored-modal style).
+ */
+async function openDiscoverPlaylistModal(playlistType, playlistName, icon) {
+    const apiUrl = _discoverPlaylistApiUrl(playlistType);
+    if (!apiUrl) { showToast('Unknown playlist type', 'error'); return; }
+
+    showLoadingOverlay(`Loading ${playlistName}...`);
+    try {
+        const res = await fetch(apiUrl);
+        const data = await res.json();
+        const tracks = data.tracks || [];
+
+        hideLoadingOverlay();
+
+        if (!tracks.length) {
+            showToast(`No tracks in ${playlistName}. Visit the Discover page first.`, 'warning');
+            return;
+        }
+
+        // Remove any existing modal
+        const old = document.getElementById('discover-playlist-modal');
+        if (old) old.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'discover-playlist-modal';
+        overlay.className = 'mirrored-modal-overlay';
+
+        const trackRows = tracks.map((t, idx) => {
+            const name = t.track_name || t.name || '';
+            const artist = t.artist_name || (t.artists ? (Array.isArray(t.artists) ? t.artists.map(a => a.name || a).join(', ') : t.artists) : '');
+            const album = t.album_name || t.album || '';
+            const dur = t.duration_ms ? `${Math.floor(t.duration_ms / 60000)}:${String(Math.floor((t.duration_ms % 60000) / 1000)).padStart(2, '0')}` : '';
+            const coverUrl = t.album_cover_url || '';
+            const coverHtml = coverUrl
+                ? `<img src="${_escAttr(coverUrl)}" alt="" class="discover-modal-track-img" loading="lazy">`
+                : `<div class="discover-modal-track-img-placeholder"></div>`;
+            return `<div class="mirrored-track-row">
+                <span class="track-pos">${idx + 1}</span>
+                <span class="track-cover">${coverHtml}</span>
+                <span class="track-title">${_esc(name)}</span>
+                <span class="track-artist">${_esc(artist)}</span>
+                <span class="track-album">${_esc(album)}</span>
+                <span class="track-duration">${dur}</span>
+            </div>`;
+        }).join('');
+
+        overlay.innerHTML = `
+            <div class="mirrored-modal">
+                <div class="mirrored-modal-header">
+                    <div class="mirrored-modal-hero">
+                        <div class="mirrored-modal-hero-icon discover">${icon || '🎵'}</div>
+                        <div class="mirrored-modal-hero-info">
+                            <h2 class="mirrored-modal-hero-title">${_esc(playlistName)}</h2>
+                            <div class="mirrored-modal-hero-subtitle">
+                                <span class="mirrored-modal-hero-badge">discover</span>
+                                <span>${tracks.length} tracks</span>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="mirrored-modal-close" onclick="closeDiscoverPlaylistModal()">&times;</span>
+                </div>
+                <div class="mirrored-modal-tracks">
+                    <div class="mirrored-track-header">
+                        <span>#</span><span></span><span>Track</span><span>Artist</span><span>Album</span><span style="text-align:right">Time</span>
+                    </div>
+                    ${trackRows}
+                </div>
+                <div class="mirrored-modal-footer">
+                    <div class="mirrored-modal-footer-left"></div>
+                    <div class="mirrored-modal-footer-right" style="display:flex;gap:10px;">
+                        <button class="mirrored-btn-close" onclick="closeDiscoverPlaylistModal()">Close</button>
+                        <button class="mirrored-btn-discover" onclick="closeDiscoverPlaylistModal(); syncDiscoverPlaylistFromTab('${_escAttr(playlistType)}', '${_escAttr(playlistName)}')">Sync Now</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        overlay.addEventListener('click', e => { if (e.target === overlay) closeDiscoverPlaylistModal(); });
+        document.body.appendChild(overlay);
+    } catch (err) {
+        hideLoadingOverlay();
+        showToast(`Error loading ${playlistName}: ${err.message}`, 'error');
+    }
+}
+
+function closeDiscoverPlaylistModal() {
+    const m = document.getElementById('discover-playlist-modal');
+    if (m) m.remove();
 }
