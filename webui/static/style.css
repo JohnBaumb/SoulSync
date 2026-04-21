@@ -59277,6 +59277,49 @@ body.reduce-effects *::after {
     box-shadow: none;
 }
 
+/* Empty-state styling */
+.discover-sync-card-empty {
+    opacity: 0.55;
+}
+
+.discover-sync-card-empty .discover-sync-toggle-slider {
+    opacity: 0.4;
+}
+
+.discover-sync-empty-hint {
+    background: rgba(255, 193, 7, 0.08);
+    border: 1px solid rgba(255, 193, 7, 0.25);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    color: #ccc;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.discover-sync-empty-hint p {
+    margin: 0 0 6px 0;
+}
+
+.discover-sync-empty-hint p:last-child {
+    margin-bottom: 0;
+}
+
+.discover-sync-empty-hint strong {
+    color: #ffc107;
+}
+
+.discover-sync-source-info {
+    color: #888;
+    font-size: 0.82rem;
+    margin-bottom: 12px;
+    padding-left: 4px;
+}
+
+.discover-sync-source-info strong {
+    color: #aaa;
+}
+
 @media (max-width: 768px) {
     .discover-sync-card {
         flex-wrap: wrap;

@@ -43160,6 +43160,15 @@ def get_discover_synced_playlists():
             {'type': 'familiar_favorites', 'name': 'Familiar Favorites', 'description': 'Familiar tracks you love', 'icon': '❤️'},
         ]
 
+        # Check if discovery pool has any data (needed for personalized playlists)
+        try:
+            with database._get_connection() as conn:
+                pool_count = conn.execute(
+                    "SELECT COUNT(*) FROM discovery_pool WHERE source = ?", (active_source,)
+                ).fetchone()[0]
+        except Exception:
+            pool_count = 0
+
         results = []
         for pt in playlist_types:
             ptype = pt['type']
@@ -43180,7 +43189,12 @@ def get_discover_synced_playlists():
                 except Exception:
                     track_count = 0
             else:
-                track_count = 50  # Standard limit for personalized playlists
+                # Personalized playlists come from the discovery pool
+                # Only show count if pool actually has data
+                if pool_count > 0:
+                    track_count = min(50, pool_count)
+                else:
+                    track_count = 0
 
             # Get last sync info
             virtual_id = f'discover_{ptype}'
@@ -43214,7 +43228,19 @@ def get_discover_synced_playlists():
                 'virtual_id': virtual_id,
             })
 
-        return jsonify({"success": True, "playlists": results})
+        source_labels = {
+            'spotify': 'Spotify', 'deezer': 'Deezer', 'itunes': 'iTunes/Apple Music',
+            'discogs': 'Discogs', 'hydrabase': 'Hydrabase'
+        }
+        has_any_data = pool_count > 0 or any(r['track_count'] > 0 for r in results)
+
+        return jsonify({
+            "success": True,
+            "playlists": results,
+            "source": active_source,
+            "source_label": source_labels.get(active_source, active_source),
+            "has_data": has_any_data,
+        })
     except Exception as e:
         logger.error(f"Error getting discover synced playlists: {e}")
         import traceback

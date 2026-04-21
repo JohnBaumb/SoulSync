@@ -77042,6 +77042,23 @@ async function loadDiscoverSyncPlaylists() {
         }
 
         container.innerHTML = '';
+
+        // Show source info and empty-state hint if no playlists have data
+        if (!data.has_data) {
+            const hint = document.createElement('div');
+            hint.className = 'discover-sync-empty-hint';
+            hint.innerHTML = `
+                <p>Your Discover playlists don't have any tracks yet.</p>
+                <p>Go to the <strong>Discover</strong> page and let it build your playlist pool — it uses your <strong>${data.source_label || 'configured source'}</strong> data and watchlist to generate personalized playlists.</p>
+            `;
+            container.appendChild(hint);
+        } else {
+            const sourceInfo = document.createElement('div');
+            sourceInfo.className = 'discover-sync-source-info';
+            sourceInfo.innerHTML = `Source: <strong>${data.source_label || data.source}</strong>`;
+            container.appendChild(sourceInfo);
+        }
+
         data.playlists.forEach(playlist => {
             renderDiscoverSyncCard(playlist, container);
         });
@@ -77055,7 +77072,8 @@ async function loadDiscoverSyncPlaylists() {
 
 function renderDiscoverSyncCard(playlist, container) {
     const card = document.createElement('div');
-    card.className = 'discover-sync-card';
+    const isEmpty = playlist.track_count === 0;
+    card.className = `discover-sync-card${isEmpty ? ' discover-sync-card-empty' : ''}`;
     card.id = `discover-sync-card-${playlist.type}`;
 
     const lastSyncedText = playlist.last_synced
@@ -77067,13 +77085,15 @@ function renderDiscoverSyncCard(playlist, container) {
     const statusText = playlist.sync_status === 'syncing' ? 'Syncing...' :
                         playlist.sync_status === 'synced' ? 'Synced' : 'Not synced';
 
+    const trackLabel = isEmpty ? 'No tracks yet' : `${playlist.track_count} tracks`;
+
     card.innerHTML = `
         <div class="discover-sync-card-icon">${playlist.icon}</div>
         <div class="discover-sync-card-info">
             <div class="discover-sync-card-name">${playlist.name}</div>
             <div class="discover-sync-card-desc">${playlist.description}</div>
             <div class="discover-sync-card-meta">
-                <span class="discover-sync-track-count">${playlist.track_count} tracks</span>
+                <span class="discover-sync-track-count">${trackLabel}</span>
                 <span class="discover-sync-separator">\u00b7</span>
                 <span class="discover-sync-status ${statusClass}">${statusText}</span>
                 <span class="discover-sync-separator">\u00b7</span>
@@ -77081,17 +77101,17 @@ function renderDiscoverSyncCard(playlist, container) {
             </div>
         </div>
         <div class="discover-sync-card-actions">
-            <div class="discover-sync-toggle-wrapper" title="Keep this playlist updated automatically">
+            <div class="discover-sync-toggle-wrapper" title="${isEmpty ? 'No tracks available — visit Discover first' : 'Keep this playlist updated automatically'}">
                 <label class="discover-sync-toggle-label">Keep updated</label>
                 <label class="discover-sync-toggle">
-                    <input type="checkbox" ${playlist.auto_update ? 'checked' : ''}
+                    <input type="checkbox" ${playlist.auto_update ? 'checked' : ''} ${isEmpty ? 'disabled' : ''}
                            onchange="toggleDiscoverAutoUpdate('${playlist.type}', this.checked)">
                     <span class="discover-sync-toggle-slider"></span>
                 </label>
             </div>
             <button class="discover-sync-btn" id="discover-sync-btn-${playlist.type}"
                     onclick="syncDiscoverPlaylistFromTab('${playlist.type}', '${playlist.name}')"
-                    ${playlist.sync_status === 'syncing' || playlist.track_count === 0 ? 'disabled' : ''}>
+                    ${playlist.sync_status === 'syncing' || isEmpty ? 'disabled' : ''}>
                 \u27f3 Sync Now
             </button>
         </div>
