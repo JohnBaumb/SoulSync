@@ -77055,7 +77055,7 @@ async function loadDiscoverSyncPlaylists() {
         }
 
         data.playlists.forEach(playlist => {
-            renderDiscoverSyncCard(playlist, container);
+            renderDiscoverSyncCard(playlist, container, data.source_label || data.source);
         });
 
         discoverSyncPlaylistsLoaded = true;
@@ -77065,7 +77065,7 @@ async function loadDiscoverSyncPlaylists() {
     }
 }
 
-function renderDiscoverSyncCard(playlist, container) {
+function renderDiscoverSyncCard(playlist, container, sourceLabel) {
     const card = document.createElement('div');
     const isEmpty = playlist.track_count === 0;
     card.className = `discover-sync-card${isEmpty ? ' discover-sync-card-empty' : ''}`;
@@ -77087,6 +77087,8 @@ function renderDiscoverSyncCard(playlist, container) {
         <div class="discover-sync-card-info">
             <div class="discover-sync-card-name">${playlist.name}
                 <span class="discover-sync-card-meta-inline">
+                    <span class="discover-sync-source-badge">${sourceLabel || 'unknown'}</span>
+                    <span class="discover-sync-separator">\u00b7</span>
                     <span class="discover-sync-track-count">${trackLabel}</span>
                     <span class="discover-sync-separator">\u00b7</span>
                     <span class="discover-sync-status ${statusClass}">${statusText}</span>

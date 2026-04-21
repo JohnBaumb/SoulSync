@@ -59159,6 +59159,18 @@ body.reduce-effects *::after {
     color: rgba(255, 255, 255, 0.4);
 }
 
+.discover-sync-source-badge {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 1px 7px;
+    border-radius: 4px;
+    color: rgb(var(--accent-light-rgb));
+    background: rgba(var(--accent-rgb), 0.1);
+    border: 1px solid rgba(var(--accent-rgb), 0.2);
+}
+
 .discover-sync-card-desc {
     display: none;
 }
