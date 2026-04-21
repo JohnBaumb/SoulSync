@@ -29158,6 +29158,11 @@ function initializeSyncPage() {
                 loadMirroredPlaylists();
             }
 
+            // Auto-load SoulSync Discover playlists on first tab activation
+            if (tabId === 'discover' && !discoverSyncPlaylistsLoaded) {
+                loadDiscoverSyncPlaylists();
+            }
+
             // Auto-load server playlists on first tab activation
             if (tabId === 'server' && !window._serverPlaylistsLoaded) {
                 window._serverPlaylistsLoaded = true;
@@ -68822,6 +68827,7 @@ function importFileSubmit() {
 // ── Mirrored Playlists ────────────────────────────────────────────────
 
 let mirroredPlaylistsLoaded = false;
+let discoverSyncPlaylistsLoaded = false;
 
 /**
  * Fire-and-forget helper: send parsed playlist data to be mirrored on the backend.
@@ -77018,3 +77024,225 @@ window._adlFilterByBatch = _adlFilterByBatch;
 window._adlCancelBatch = _adlCancelBatch;
 window.adlToggleBatchHistory = adlToggleBatchHistory;
 window.adlToggleBatchPanel = adlToggleBatchPanel;
+
+// ── SoulSync Discover Sync Tab ─────────────────────────────────────────
+
+async function loadDiscoverSyncPlaylists() {
+    const container = document.getElementById('discover-sync-playlist-container');
+    if (!container) return;
+    container.innerHTML = '<div class="playlist-placeholder">Loading Discover playlists...</div>';
+
+    try {
+        const response = await fetch('/api/discover/synced-playlists');
+        const data = await response.json();
+
+        if (!data.success || !data.playlists || data.playlists.length === 0) {
+            container.innerHTML = '<div class="playlist-placeholder">No Discover playlists available. Visit the Discover page to generate playlists first.</div>';
+            return;
+        }
+
+        container.innerHTML = '';
+        data.playlists.forEach(playlist => {
+            renderDiscoverSyncCard(playlist, container);
+        });
+
+        discoverSyncPlaylistsLoaded = true;
+    } catch (error) {
+        console.error('Error loading discover sync playlists:', error);
+        container.innerHTML = '<div class="playlist-placeholder">Error loading Discover playlists.</div>';
+    }
+}
+
+function renderDiscoverSyncCard(playlist, container) {
+    const card = document.createElement('div');
+    card.className = 'discover-sync-card';
+    card.id = `discover-sync-card-${playlist.type}`;
+
+    const lastSyncedText = playlist.last_synced
+        ? `Last synced ${timeAgo(playlist.last_synced)}`
+        : 'Never synced';
+
+    const statusClass = playlist.sync_status === 'syncing' ? 'syncing' :
+                         playlist.sync_status === 'synced' ? 'synced' : 'not-synced';
+    const statusText = playlist.sync_status === 'syncing' ? 'Syncing...' :
+                        playlist.sync_status === 'synced' ? 'Synced' : 'Not synced';
+
+    card.innerHTML = `
+        <div class="discover-sync-card-icon">${playlist.icon}</div>
+        <div class="discover-sync-card-info">
+            <div class="discover-sync-card-name">${playlist.name}</div>
+            <div class="discover-sync-card-desc">${playlist.description}</div>
+            <div class="discover-sync-card-meta">
+                <span class="discover-sync-track-count">${playlist.track_count} tracks</span>
+                <span class="discover-sync-separator">\u00b7</span>
+                <span class="discover-sync-status ${statusClass}">${statusText}</span>
+                <span class="discover-sync-separator">\u00b7</span>
+                <span class="discover-sync-last-synced">${lastSyncedText}</span>
+            </div>
+        </div>
+        <div class="discover-sync-card-actions">
+            <div class="discover-sync-toggle-wrapper" title="Keep this playlist updated automatically">
+                <label class="discover-sync-toggle-label">Keep updated</label>
+                <label class="discover-sync-toggle">
+                    <input type="checkbox" ${playlist.auto_update ? 'checked' : ''}
+                           onchange="toggleDiscoverAutoUpdate('${playlist.type}', this.checked)">
+                    <span class="discover-sync-toggle-slider"></span>
+                </label>
+            </div>
+            <button class="discover-sync-btn" id="discover-sync-btn-${playlist.type}"
+                    onclick="syncDiscoverPlaylistFromTab('${playlist.type}', '${playlist.name}')"
+                    ${playlist.sync_status === 'syncing' || playlist.track_count === 0 ? 'disabled' : ''}>
+                \u27f3 Sync Now
+            </button>
+        </div>
+    `;
+
+    container.appendChild(card);
+}
+
+async function toggleDiscoverAutoUpdate(playlistType, enabled) {
+    try {
+        const response = await fetch('/api/discover/auto-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playlist_type: playlistType, enabled: enabled })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast(`Auto-update ${enabled ? 'enabled' : 'disabled'} for ${playlistType.replace(/_/g, ' ')}`, 'success');
+        } else {
+            showToast(`Failed to update setting: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error toggling auto-update:', error);
+        showToast('Failed to update setting', 'error');
+    }
+}
+
+async function syncDiscoverPlaylistFromTab(playlistType, playlistName) {
+    const btn = document.getElementById(`discover-sync-btn-${playlistType}`);
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Syncing...';
+    }
+
+    try {
+        let tracksResponse;
+
+        if (playlistType === 'release_radar') {
+            tracksResponse = await fetch('/api/discover/release-radar');
+        } else if (playlistType === 'discovery_weekly') {
+            tracksResponse = await fetch('/api/discover/discovery-weekly');
+        } else if (playlistType === 'seasonal_playlist') {
+            tracksResponse = await fetch('/api/discover/seasonal');
+        } else if (playlistType === 'popular_picks') {
+            tracksResponse = await fetch('/api/discover/personalized/popular-picks');
+        } else if (playlistType === 'hidden_gems') {
+            tracksResponse = await fetch('/api/discover/personalized/hidden-gems');
+        } else if (playlistType === 'discovery_shuffle') {
+            tracksResponse = await fetch('/api/discover/personalized/discovery-shuffle');
+        } else if (playlistType === 'familiar_favorites') {
+            tracksResponse = await fetch('/api/discover/personalized/familiar-favorites');
+        }
+
+        let tracks = [];
+        if (tracksResponse && tracksResponse.ok) {
+            const data = await tracksResponse.json();
+            tracks = data.tracks || [];
+        }
+
+        if (!tracks.length) {
+            showToast(`No tracks available for ${playlistName}. Visit the Discover page first.`, 'warning');
+            if (btn) { btn.disabled = false; btn.textContent = '\u27f3 Sync Now'; }
+            return;
+        }
+
+        const syncTracks = tracks.map(track => {
+            if (track.track_data_json) {
+                const t = track.track_data_json;
+                if (t.artists && Array.isArray(t.artists)) {
+                    t.artists = t.artists.map(a => a.name || a);
+                }
+                return t;
+            }
+            return {
+                id: track.spotify_track_id || track.track_id || '',
+                name: track.track_name || track.name || '',
+                artists: [track.artist_name || 'Unknown Artist'],
+                album: track.album_name || '',
+                duration_ms: track.duration_ms || 0
+            };
+        });
+
+        const virtualPlaylistId = `discover_${playlistType}`;
+
+        const syncResponse = await fetch('/api/sync/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                playlist_id: virtualPlaylistId,
+                playlist_name: playlistName,
+                tracks: syncTracks,
+                source: 'discover'
+            })
+        });
+
+        const result = await syncResponse.json();
+        if (result.success) {
+            showToast(`Syncing ${playlistName} to your library...`, 'info');
+            const card = document.getElementById(`discover-sync-card-${playlistType}`);
+            if (card) {
+                const statusEl = card.querySelector('.discover-sync-status');
+                if (statusEl) {
+                    statusEl.className = 'discover-sync-status syncing';
+                    statusEl.textContent = 'Syncing...';
+                }
+            }
+            pollDiscoverSyncFromTab(playlistType, virtualPlaylistId, playlistName);
+        } else {
+            showToast(`Sync failed: ${result.error || 'Unknown error'}`, 'error');
+            if (btn) { btn.disabled = false; btn.textContent = '\u27f3 Sync Now'; }
+        }
+    } catch (error) {
+        console.error(`Error syncing ${playlistName}:`, error);
+        showToast(`Failed to sync ${playlistName}`, 'error');
+        if (btn) { btn.disabled = false; btn.textContent = '\u27f3 Sync Now'; }
+    }
+}
+
+function pollDiscoverSyncFromTab(playlistType, virtualPlaylistId, playlistName) {
+    const pollInterval = setInterval(async () => {
+        try {
+            const resp = await fetch(`/api/sync/status/${virtualPlaylistId}`);
+            if (!resp.ok) { clearInterval(pollInterval); return; }
+            const data = await resp.json();
+
+            if (data.status === 'finished' || data.status === 'error') {
+                clearInterval(pollInterval);
+                const btn = document.getElementById(`discover-sync-btn-${playlistType}`);
+                if (btn) { btn.disabled = false; btn.textContent = '\u27f3 Sync Now'; }
+
+                const card = document.getElementById(`discover-sync-card-${playlistType}`);
+                if (card) {
+                    const statusEl = card.querySelector('.discover-sync-status');
+                    if (statusEl) {
+                        statusEl.className = `discover-sync-status ${data.status === 'finished' ? 'synced' : 'not-synced'}`;
+                        statusEl.textContent = data.status === 'finished' ? 'Synced' : 'Failed';
+                    }
+                    const lastSyncedEl = card.querySelector('.discover-sync-last-synced');
+                    if (lastSyncedEl && data.status === 'finished') {
+                        lastSyncedEl.textContent = 'Last synced just now';
+                    }
+                }
+
+                if (data.status === 'finished') {
+                    showToast(`${playlistName} synced successfully!`, 'success');
+                } else {
+                    showToast(`${playlistName} sync failed`, 'error');
+                }
+            }
+        } catch (error) {
+            clearInterval(pollInterval);
+        }
+    }, 2000);
+}

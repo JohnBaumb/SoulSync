@@ -59079,3 +59079,212 @@ body.reduce-effects *::after {
         font-size: 18px;
     }
 }
+
+/* ── SoulSync Discover Sync Tab ───────────────────────────────────────── */
+
+.discover-icon {
+    background-image: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23a78bfa"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm-5-9l7.5-4.5L12 14l-5-3z"/></svg>');
+}
+
+.sync-tab-button[data-tab="discover"].active {
+    background: linear-gradient(135deg, #a78bfa, #7c3aed);
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(167, 139, 250, 0.3);
+}
+
+.sync-tab-button.active .discover-icon {
+    background-image: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ffffff"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm-5-9l7.5-4.5L12 14l-5-3z"/></svg>');
+}
+
+.discover-sync-subtitle {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+    margin: 4px 0 0 0;
+    font-weight: 400;
+    line-height: 1.4;
+}
+
+.discover-sync-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    margin: 8px 6px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.25s ease;
+}
+
+.discover-sync-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(167, 139, 250, 0.2);
+}
+
+.discover-sync-card-icon {
+    font-size: 32px;
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+}
+
+.discover-sync-card-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.discover-sync-card-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 2px;
+}
+
+.discover-sync-card-desc {
+    font-size: 12.5px;
+    color: rgba(255, 255, 255, 0.45);
+    margin-bottom: 6px;
+}
+
+.discover-sync-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.discover-sync-separator {
+    opacity: 0.4;
+}
+
+.discover-sync-track-count {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.discover-sync-status {
+    font-weight: 500;
+}
+
+.discover-sync-status.synced {
+    color: #22c55e;
+}
+
+.discover-sync-status.syncing {
+    color: #facc15;
+}
+
+.discover-sync-status.not-synced {
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.discover-sync-last-synced {
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.discover-sync-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+}
+
+.discover-sync-toggle-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.discover-sync-toggle-label {
+    font-size: 10.5px;
+    color: rgba(255, 255, 255, 0.4);
+    white-space: nowrap;
+}
+
+.discover-sync-toggle {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    cursor: pointer;
+}
+
+.discover-sync-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.discover-sync-toggle-slider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 22px;
+    transition: all 0.25s ease;
+}
+
+.discover-sync-toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 3px;
+    bottom: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: all 0.25s ease;
+}
+
+.discover-sync-toggle input:checked + .discover-sync-toggle-slider {
+    background: #a78bfa;
+}
+
+.discover-sync-toggle input:checked + .discover-sync-toggle-slider::before {
+    transform: translateX(18px);
+}
+
+.discover-sync-btn {
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #a78bfa, #7c3aed);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.25s ease;
+}
+
+.discover-sync-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(167, 139, 250, 0.35);
+}
+
+.discover-sync-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+@media (max-width: 768px) {
+    .discover-sync-card {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .discover-sync-card-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}

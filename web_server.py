@@ -43021,6 +43021,9 @@ def refresh_discover_data():
 
         logger.info(f"[Discover Refresh] Complete! Recent albums: {len(recent_albums)}, Release Radar: {len(release_radar)} tracks, Discovery Weekly: {len(discovery_weekly)} tracks")
 
+        # Auto-sync any "Keep it updated" playlists
+        _auto_sync_discover_playlists(refresh_pid, active_source)
+
         return jsonify({
             "success": True,
             "message": "Discover data refreshed",
@@ -43035,6 +43038,213 @@ def refresh_discover_data():
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+def _auto_sync_discover_playlists(profile_id, active_source):
+    """Auto-sync Discover playlists that have 'Keep it updated' enabled."""
+    try:
+        playlist_configs = {
+            'release_radar': 'Fresh Tape',
+            'discovery_weekly': 'The Archives',
+            'seasonal_playlist': 'Seasonal Mix',
+            'popular_picks': 'Popular Picks',
+            'hidden_gems': 'Hidden Gems',
+            'discovery_shuffle': 'Discovery Shuffle',
+            'familiar_favorites': 'Familiar Favorites',
+        }
+
+        for ptype, pname in playlist_configs.items():
+            if not config_manager.get(f'discover.auto_sync.{ptype}', False):
+                continue
+
+            logger.info(f"[Auto-Sync] {pname} has 'Keep it updated' enabled, triggering sync...")
+
+            try:
+                database = get_database()
+                tracks = []
+
+                if ptype in ('release_radar', 'discovery_weekly'):
+                    curated_ids = database.get_curated_playlist(f'{ptype}_{active_source}', profile_id=profile_id)
+                    if not curated_ids:
+                        curated_ids = database.get_curated_playlist(ptype, profile_id=profile_id)
+                    if curated_ids:
+                        pool_tracks = database.get_discovery_pool_tracks(limit=5000, new_releases_only=False, source=active_source, profile_id=profile_id)
+                        tracks_by_id = {}
+                        for track in pool_tracks:
+                            tid = None
+                            if active_source == 'spotify' and track.spotify_track_id:
+                                tid = track.spotify_track_id
+                            elif active_source == 'deezer' and getattr(track, 'deezer_track_id', None):
+                                tid = track.deezer_track_id
+                            elif active_source == 'itunes' and track.itunes_track_id:
+                                tid = track.itunes_track_id
+                            if tid:
+                                tracks_by_id[tid] = track
+
+                        for track_id in curated_ids:
+                            if track_id in tracks_by_id:
+                                t = tracks_by_id[track_id]
+                                tracks.append({
+                                    'id': t.spotify_track_id or getattr(t, 'deezer_track_id', None) or t.itunes_track_id or '',
+                                    'name': t.track_name,
+                                    'artists': [t.artist_name],
+                                    'album': t.album_name,
+                                    'duration_ms': t.duration_ms or 0
+                                })
+                elif ptype == 'seasonal_playlist':
+                    from core.seasonal_discovery import SeasonalDiscoveryService
+                    seasonal_svc = SeasonalDiscoveryService(database)
+                    season_data = seasonal_svc.get_current_season_playlist()
+                    if season_data and season_data.get('tracks'):
+                        tracks = [{
+                            'id': t.get('spotify_track_id', ''),
+                            'name': t.get('track_name', ''),
+                            'artists': [t.get('artist_name', '')],
+                            'album': t.get('album_name', ''),
+                            'duration_ms': t.get('duration_ms', 0)
+                        } for t in season_data['tracks']]
+                else:
+                    from core.personalized_playlists import PersonalizedPlaylistsService
+                    service = PersonalizedPlaylistsService(database)
+                    method_map = {
+                        'popular_picks': service.get_popular_picks,
+                        'hidden_gems': service.get_hidden_gems,
+                        'discovery_shuffle': service.get_discovery_shuffle,
+                        'familiar_favorites': service.get_familiar_favorites,
+                    }
+                    if ptype in method_map:
+                        raw_tracks = method_map[ptype](limit=50)
+                        tracks = [{
+                            'id': t.get('spotify_track_id', ''),
+                            'name': t.get('track_name', ''),
+                            'artists': [t.get('artist_name', '')],
+                            'album': t.get('album_name', ''),
+                            'duration_ms': t.get('duration_ms', 0)
+                        } for t in raw_tracks]
+
+                if tracks:
+                    virtual_id = f'discover_{ptype}'
+                    with sync_lock:
+                        if virtual_id in active_sync_workers and not active_sync_workers[virtual_id].done():
+                            logger.info(f"[Auto-Sync] {pname} already syncing, skipping")
+                            continue
+                        sync_states[virtual_id] = {"status": "starting", "progress": {}}
+                        future = sync_executor.submit(_run_sync_task, virtual_id, pname, tracks, None, profile_id, '')
+                        active_sync_workers[virtual_id] = future
+                    logger.info(f"[Auto-Sync] Started sync for {pname} with {len(tracks)} tracks")
+                else:
+                    logger.info(f"[Auto-Sync] No tracks available for {pname}, skipping")
+
+            except Exception as e:
+                logger.error(f"[Auto-Sync] Error syncing {pname}: {e}")
+
+    except Exception as e:
+        logger.error(f"[Auto-Sync] Error in auto-sync: {e}")
+
+
+@app.route('/api/discover/synced-playlists', methods=['GET'])
+def get_discover_synced_playlists():
+    """Get all Discover playlist types with sync status and auto-update config."""
+    try:
+        database = get_database()
+        active_source = _get_active_discovery_source()
+        pid = get_current_profile_id()
+
+        playlist_types = [
+            {'type': 'release_radar', 'name': 'Fresh Tape', 'description': 'New drops from recent releases', 'icon': '🎵'},
+            {'type': 'discovery_weekly', 'name': 'The Archives', 'description': 'Curated from your collection', 'icon': '📚'},
+            {'type': 'seasonal_playlist', 'name': 'Seasonal Mix', 'description': 'Seasonal curated playlist', 'icon': '🌿'},
+            {'type': 'popular_picks', 'name': 'Popular Picks', 'description': 'Most popular from your discovery pool', 'icon': '🔥'},
+            {'type': 'hidden_gems', 'name': 'Hidden Gems', 'description': 'Underappreciated gems from your pool', 'icon': '💎'},
+            {'type': 'discovery_shuffle', 'name': 'Discovery Shuffle', 'description': 'Random tracks from discovery', 'icon': '🔀'},
+            {'type': 'familiar_favorites', 'name': 'Familiar Favorites', 'description': 'Familiar tracks you love', 'icon': '❤️'},
+        ]
+
+        results = []
+        for pt in playlist_types:
+            ptype = pt['type']
+
+            # Get track count
+            track_count = 0
+            if ptype in ('release_radar', 'discovery_weekly'):
+                curated_ids = database.get_curated_playlist(f'{ptype}_{active_source}', profile_id=pid)
+                if not curated_ids:
+                    curated_ids = database.get_curated_playlist(ptype, profile_id=pid)
+                track_count = len(curated_ids) if curated_ids else 0
+            elif ptype == 'seasonal_playlist':
+                from core.seasonal_discovery import SeasonalDiscoveryService
+                try:
+                    seasonal_svc = SeasonalDiscoveryService(database)
+                    season_data = seasonal_svc.get_current_season_playlist()
+                    track_count = len(season_data.get('tracks', [])) if season_data else 0
+                except Exception:
+                    track_count = 0
+            else:
+                track_count = 50  # Standard limit for personalized playlists
+
+            # Get last sync info
+            virtual_id = f'discover_{ptype}'
+            sync_status = 'never'
+            last_synced = None
+
+            with sync_lock:
+                state = sync_states.get(virtual_id)
+                if state and state.get('status') in ('syncing', 'starting'):
+                    sync_status = 'syncing'
+
+            if sync_status == 'never':
+                try:
+                    entries, _ = database.get_sync_history(source='discover', page=1, limit=100)
+                    for entry in entries:
+                        if entry.get('playlist_name') == pt['name'] or entry.get('playlist_id', '').startswith(virtual_id):
+                            sync_status = 'synced'
+                            last_synced = entry.get('completed_at') or entry.get('created_at')
+                            break
+                except Exception:
+                    pass
+
+            auto_update = config_manager.get(f'discover.auto_sync.{ptype}', False)
+
+            results.append({
+                **pt,
+                'track_count': track_count,
+                'sync_status': sync_status,
+                'last_synced': last_synced,
+                'auto_update': bool(auto_update),
+                'virtual_id': virtual_id,
+            })
+
+        return jsonify({"success": True, "playlists": results})
+    except Exception as e:
+        logger.error(f"Error getting discover synced playlists: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/discover/auto-update', methods=['POST', 'GET'])
+def manage_discover_auto_update():
+    """Toggle or get auto-update settings for Discover playlists."""
+    valid_types = ['release_radar', 'discovery_weekly', 'seasonal_playlist',
+                   'popular_picks', 'hidden_gems', 'discovery_shuffle', 'familiar_favorites']
+
+    if request.method == 'GET':
+        settings = {}
+        for ptype in valid_types:
+            settings[ptype] = bool(config_manager.get(f'discover.auto_sync.{ptype}', False))
+        return jsonify({"success": True, "settings": settings})
+
+    data = request.get_json()
+    playlist_type = data.get('playlist_type')
+    enabled = data.get('enabled', False)
+
+    if playlist_type not in valid_types:
+        return jsonify({"success": False, "error": f"Invalid playlist type: {playlist_type}"}), 400
+
+    config_manager.set(f'discover.auto_sync.{playlist_type}', bool(enabled))
+    logger.info(f"Discover auto-sync for {playlist_type}: {'enabled' if enabled else 'disabled'}")
+
+    return jsonify({"success": True, "playlist_type": playlist_type, "enabled": bool(enabled)})
 
 
 @app.route('/api/discover/diagnose', methods=['GET'])
