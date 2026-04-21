@@ -11892,6 +11892,7 @@ body.helper-mode-active #dashboard-activity-feed:hover {
     overflow: hidden;
     border-top-left-radius: 20px;
     border-top-right-radius: 20px;
+    flex-shrink: 0;
 }
 
 .mirrored-modal-hero {
@@ -12092,6 +12093,7 @@ body.helper-mode-active #dashboard-activity-feed:hover {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
     border-bottom-left-radius: 20px;
     border-bottom-right-radius: 20px;
+    flex-shrink: 0;
 }
 
 .mirrored-modal-footer button {
