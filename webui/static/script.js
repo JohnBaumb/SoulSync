@@ -77052,11 +77052,6 @@ async function loadDiscoverSyncPlaylists() {
                 <p>Go to the <strong>Discover</strong> page and let it build your playlist pool — it uses your <strong>${data.source_label || 'configured source'}</strong> data and watchlist to generate personalized playlists.</p>
             `;
             container.appendChild(hint);
-        } else {
-            const sourceInfo = document.createElement('div');
-            sourceInfo.className = 'discover-sync-source-info';
-            sourceInfo.innerHTML = `Source: <strong>${data.source_label || data.source}</strong>`;
-            container.appendChild(sourceInfo);
         }
 
         data.playlists.forEach(playlist => {
@@ -77090,14 +77085,14 @@ function renderDiscoverSyncCard(playlist, container) {
     card.innerHTML = `
         <div class="discover-sync-card-icon">${playlist.icon}</div>
         <div class="discover-sync-card-info">
-            <div class="discover-sync-card-name">${playlist.name}</div>
-            <div class="discover-sync-card-desc">${playlist.description}</div>
-            <div class="discover-sync-card-meta">
-                <span class="discover-sync-track-count">${trackLabel}</span>
-                <span class="discover-sync-separator">\u00b7</span>
-                <span class="discover-sync-status ${statusClass}">${statusText}</span>
-                <span class="discover-sync-separator">\u00b7</span>
-                <span class="discover-sync-last-synced">${lastSyncedText}</span>
+            <div class="discover-sync-card-name">${playlist.name}
+                <span class="discover-sync-card-meta-inline">
+                    <span class="discover-sync-track-count">${trackLabel}</span>
+                    <span class="discover-sync-separator">\u00b7</span>
+                    <span class="discover-sync-status ${statusClass}">${statusText}</span>
+                    <span class="discover-sync-separator">\u00b7</span>
+                    <span class="discover-sync-last-synced">${lastSyncedText}</span>
+                </span>
             </div>
         </div>
         <div class="discover-sync-card-actions">
