@@ -43281,13 +43281,20 @@ def manage_discover_auto_update():
         settings = {}
         for ptype in valid_types:
             settings[ptype] = bool(config_manager.get(f'discover.auto_sync.{ptype}', False))
+        # Also include any listenbrainz_* auto-sync settings
+        all_config = config_manager.get('discover.auto_sync', {})
+        if isinstance(all_config, dict):
+            for key, val in all_config.items():
+                if key.startswith('listenbrainz_'):
+                    settings[key] = bool(val)
         return jsonify({"success": True, "settings": settings})
 
     data = request.get_json()
     playlist_type = data.get('playlist_type')
     enabled = data.get('enabled', False)
 
-    if playlist_type not in valid_types:
+    is_lb_type = playlist_type and playlist_type.startswith('listenbrainz_')
+    if playlist_type not in valid_types and not is_lb_type:
         return jsonify({"success": False, "error": f"Invalid playlist type: {playlist_type}"}), 400
 
     config_manager.set(f'discover.auto_sync.{playlist_type}', bool(enabled))
