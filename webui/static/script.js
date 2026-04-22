@@ -77232,8 +77232,8 @@ function renderDiscoverSyncCard(playlist, container, sourceLabel) {
     let statusText = playlist.sync_status === 'syncing' ? 'Syncing...' :
                      playlist.sync_status === 'synced' ? 'Synced' : 'Not synced';
 
-    // Show matched/total counts if available
-    if (playlist.sync_status === 'synced' && playlist.total_sync_tracks > 0) {
+    // Show matched/total counts if available (only when matched > 0, meaning completion was recorded)
+    if (playlist.sync_status === 'synced' && playlist.matched_tracks > 0 && playlist.total_sync_tracks > 0) {
         statusText = `Synced ${playlist.matched_tracks}/${playlist.total_sync_tracks}`;
     }
 
@@ -77427,8 +77427,16 @@ function pollDiscoverSyncFromTab(playlistType, virtualPlaylistId, playlistName) 
                 if (card) {
                     const statusEl = card.querySelector('.discover-sync-status');
                     if (statusEl) {
-                        statusEl.className = `discover-sync-status ${data.status === 'finished' ? 'synced' : 'not-synced'}`;
-                        statusEl.textContent = data.status === 'finished' ? 'Synced' : 'Failed';
+                        if (data.status === 'finished') {
+                            const progress = data.progress || data.result || {};
+                            const matched = progress.matched_tracks || 0;
+                            const total = progress.total_tracks || 0;
+                            statusEl.className = 'discover-sync-status synced';
+                            statusEl.textContent = matched > 0 && total > 0 ? `Synced ${matched}/${total}` : 'Synced';
+                        } else {
+                            statusEl.className = 'discover-sync-status not-synced';
+                            statusEl.textContent = 'Failed';
+                        }
                     }
                     const lastSyncedEl = card.querySelector('.discover-sync-last-synced');
                     if (lastSyncedEl && data.status === 'finished') {
