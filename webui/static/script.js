@@ -76459,7 +76459,7 @@ function _getBatchColor(batchId) {
         // Deterministic color from batch_id hash for consistency across reloads
         let hash = 0;
         for (let i = 0; i < batchId.length; i++) hash = ((hash << 5) - hash + batchId.charCodeAt(i)) | 0;
-        _batchColorMap[batchId] = Math.abs(hash) % 8;
+        _batchColorMap[batchId] = Math.abs(hash) % 16;
     }
     return _batchColorMap[batchId];
 }
