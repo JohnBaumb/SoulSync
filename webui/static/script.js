@@ -76439,6 +76439,7 @@ let _adlFilter = 'all';
 let _adlData = [];
 let _adlBatches = [];
 let _adlBatchHistory = [];
+let _adlServerTotal = 0;
 let _adlExpandedBatches = new Set();
 let _adlBatchHistoryPoller = null;
 let _adlFilterBatchId = null; // When set, main list shows only this batch
@@ -76481,15 +76482,16 @@ function adlSetFilter(filter) {
 
 async function _adlFetch() {
     try {
-        const resp = await fetch('/api/downloads/all?limit=300');
+        const resp = await fetch('/api/downloads/all?limit=500');
         const data = await resp.json();
         if (data.success) {
             _adlData = data.downloads || [];
             _adlBatches = data.batches || [];
+            _adlServerTotal = data.total || _adlData.length;
             _adlRender();
             _adlRenderBatchPanel();
             // Don't call _adlUpdateBadge() here — it counts the truncated
-            // 300-item local array. The WebSocket status push already
+            // local array. The WebSocket status push already
             // maintains the badge with the real server-side active count.
         }
     } catch (e) {
@@ -76543,7 +76545,7 @@ function _adlRender() {
     if (countEl) {
         const activeN = _adlData.filter(d => activeStatuses.includes(d.status)).length;
         const queuedN = _adlData.filter(d => queuedStatuses.includes(d.status)).length;
-        const total = _adlData.length;
+        const total = _adlServerTotal || _adlData.length;
         const parts = [];
         if (activeN > 0) parts.push(`${activeN} active`);
         if (queuedN > 0) parts.push(`${queuedN} queued`);
