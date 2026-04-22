@@ -56708,8 +56708,17 @@ function startDecadeSyncPolling(decade, virtualPlaylistId) {
                 delete _syncProgressCallbacks[virtualPlaylistId];
                 const syncButton = el(`decade-${decade}-sync-btn`);
                 if (syncButton) { syncButton.disabled = false; syncButton.style.opacity = '1'; syncButton.style.cursor = 'pointer'; }
-                showToast(`${decade}s Classics sync complete!`, 'success');
-                setTimeout(() => { const sd = el(`decade-${decade}-sync-status`); if (sd) sd.style.display = 'none'; }, 3000);
+                const _m2 = progress.matched_tracks || matched || 0;
+                const _t2 = progress.total_tracks || total || 0;
+                const _miss2 = _t2 - _m2;
+                if (_miss2 > 0) {
+                    showToast(`${decade}s Classics: ${_m2}/${_t2} matched, ${_miss2} missing`, 'warning');
+                } else {
+                    showToast(`${decade}s Classics: all ${_t2} tracks matched!`, 'success');
+                }
+                if (el(`decade-${decade}-sync-percentage`)) el(`decade-${decade}-sync-percentage`).textContent = '100';
+                if (el(`decade-${decade}-sync-pending`)) el(`decade-${decade}-sync-pending`).textContent = '0';
+                setTimeout(() => { const sd = el(`decade-${decade}-sync-status`); if (sd) sd.style.display = 'none'; }, 5000);
             }
         };
     }
@@ -56751,12 +56760,19 @@ function startDecadeSyncPolling(decade, virtualPlaylistId) {
                     syncButton.style.cursor = 'pointer';
                 }
 
-                showToast(`${decade}s Classics sync complete!`, 'success');
+                const missing = total - matched;
+                if (missing > 0) {
+                    showToast(`${decade}s Classics: ${matched}/${total} matched, ${missing} missing`, 'warning');
+                } else {
+                    showToast(`${decade}s Classics: all ${total} tracks matched!`, 'success');
+                }
 
+                if (percentageEl) percentageEl.textContent = '100';
+                if (pendingEl) pendingEl.textContent = '0';
                 setTimeout(() => {
                     const statusDisplay = document.getElementById(`decade-${decade}-sync-status`);
                     if (statusDisplay) statusDisplay.style.display = 'none';
-                }, 3000);
+                }, 5000);
             }
         } catch (error) {
             console.error(`Error polling sync status for decade ${decade}:`, error);
@@ -57109,8 +57125,17 @@ function startGenreSyncPolling(genreName, genreId, virtualPlaylistId) {
                 delete _syncProgressCallbacks[virtualPlaylistId];
                 const syncButton = el(`genre-${genreId}-sync-btn`);
                 if (syncButton) { syncButton.disabled = false; syncButton.style.opacity = '1'; syncButton.style.cursor = 'pointer'; }
-                showToast(`${capitalizeGenre(genreName)} Mix sync complete!`, 'success');
-                setTimeout(() => { const sd = el(`genre-${genreId}-sync-status`); if (sd) sd.style.display = 'none'; }, 3000);
+                const _m3 = progress.matched_tracks || matched || 0;
+                const _t3 = progress.total_tracks || total || 0;
+                const _miss3 = _t3 - _m3;
+                if (_miss3 > 0) {
+                    showToast(`${capitalizeGenre(genreName)} Mix: ${_m3}/${_t3} matched, ${_miss3} missing`, 'warning');
+                } else {
+                    showToast(`${capitalizeGenre(genreName)} Mix: all ${_t3} tracks matched!`, 'success');
+                }
+                if (el(`genre-${genreId}-sync-percentage`)) el(`genre-${genreId}-sync-percentage`).textContent = '100';
+                if (el(`genre-${genreId}-sync-pending`)) el(`genre-${genreId}-sync-pending`).textContent = '0';
+                setTimeout(() => { const sd = el(`genre-${genreId}-sync-status`); if (sd) sd.style.display = 'none'; }, 5000);
             }
         };
     }
@@ -57152,12 +57177,19 @@ function startGenreSyncPolling(genreName, genreId, virtualPlaylistId) {
                     syncButton.style.cursor = 'pointer';
                 }
 
-                showToast(`${capitalizeGenre(genreName)} Mix sync complete!`, 'success');
+                const missing = total - matched;
+                if (missing > 0) {
+                    showToast(`${capitalizeGenre(genreName)} Mix: ${matched}/${total} matched, ${missing} missing`, 'warning');
+                } else {
+                    showToast(`${capitalizeGenre(genreName)} Mix: all ${total} tracks matched!`, 'success');
+                }
 
+                if (percentageEl) percentageEl.textContent = '100';
+                if (pendingEl) pendingEl.textContent = '0';
                 setTimeout(() => {
                     const statusDisplay = document.getElementById(`genre-${genreId}-sync-status`);
                     if (statusDisplay) statusDisplay.style.display = 'none';
-                }, 3000);
+                }, 5000);
             }
         } catch (error) {
             console.error(`Error polling sync status for genre ${genreName}:`, error);
@@ -62374,8 +62406,18 @@ function startDiscoverSyncPolling(playlistType, virtualPlaylistId) {
                     'hidden_gems': 'Hidden Gems', 'discovery_shuffle': 'Discovery Shuffle',
                     'familiar_favorites': 'Familiar Favorites', 'build_playlist': 'Custom Playlist'
                 };
-                showToast(`${playlistNames[playlistType] || playlistType} sync complete!`, 'success');
-                setTimeout(() => { const sd = el(`${prefix}-sync-status`); if (sd) sd.style.display = 'none'; }, 3000);
+                const dn = playlistNames[playlistType] || playlistType;
+                const _m = progress.matched_tracks || matched || 0;
+                const _t = progress.total_tracks || total || 0;
+                const _miss = _t - _m;
+                if (_miss > 0) {
+                    showToast(`${dn}: ${_m}/${_t} matched, ${_miss} missing`, 'warning');
+                } else {
+                    showToast(`${dn}: all ${_t} tracks matched!`, 'success');
+                }
+                if (el(`${prefix}-sync-percentage`)) el(`${prefix}-sync-percentage`).textContent = '100';
+                if (el(`${prefix}-sync-pending`)) el(`${prefix}-sync-pending`).textContent = '0';
+                setTimeout(() => { const sd = el(`${prefix}-sync-status`); if (sd) sd.style.display = 'none'; }, 5000);
             }
         };
     }
@@ -62442,15 +62484,22 @@ function startDiscoverSyncPolling(playlistType, virtualPlaylistId) {
                     'build_playlist': 'Custom Playlist'
                 };
                 const displayName = playlistNames[playlistType] || playlistType;
-                showToast(`${displayName} sync complete!`, 'success');
+                const missing = total - matched;
+                if (missing > 0) {
+                    showToast(`${displayName}: ${matched}/${total} matched, ${missing} missing`, 'warning');
+                } else {
+                    showToast(`${displayName}: all ${total} tracks matched!`, 'success');
+                }
 
-                // Hide status display after 3 seconds
+                // Update status display to show final result, then hide after 5s
+                if (percentageEl) percentageEl.textContent = '100';
+                if (pendingEl) pendingEl.textContent = '0';
                 setTimeout(() => {
                     const statusDisplay = document.getElementById(`${prefix}-sync-status`);
                     if (statusDisplay) {
                         statusDisplay.style.display = 'none';
                     }
-                }, 3000);
+                }, 5000);
             }
 
         } catch (error) {
@@ -76788,7 +76837,12 @@ function _adlRenderBatchPanel() {
             phaseText = `${batch.completed}/${total} tracks`;
             if (batch.active > 0) phaseIcon = '<span class="adl-spinner" style="margin-right:4px"></span>';
         } else if (batch.phase === 'complete') {
-            phaseText = `Done \u2014 ${batch.completed} tracks`;
+            const analysisTotal = batch.analysis_total || 0;
+            const alreadyOwned = analysisTotal > 0 ? analysisTotal - total : 0;
+            let parts = [`${batch.completed} downloaded`];
+            if (alreadyOwned > 0) parts.push(`${alreadyOwned} owned`);
+            if (batch.failed > 0) parts.push(`${batch.failed} failed`);
+            phaseText = parts.join(', ');
             phaseIcon = '<span style="color:#22c55e;margin-right:4px">\u2713</span>';
         } else if (batch.phase === 'cancelled') {
             phaseText = 'Cancelled';
