@@ -28170,8 +28170,16 @@ def _on_download_completed(batch_id, task_id, success=True):
                     except Exception:
                         pass
 
-                # Update YouTube playlist phase to 'download_complete' if this is a YouTube playlist
+                # Push discover playlists to media server after downloads complete
                 playlist_id = batch.get('playlist_id')
+                if playlist_id and playlist_id.startswith('discover_'):
+                    threading.Thread(
+                        target=_push_discover_playlist_to_server,
+                        args=(batch_id, batch),
+                        daemon=True
+                    ).start()
+
+                # Update YouTube playlist phase to 'download_complete' if this is a YouTube playlist
                 if playlist_id and playlist_id.startswith('youtube_'):
                     url_hash = playlist_id.replace('youtube_', '')
                     if url_hash in youtube_playlist_states:
