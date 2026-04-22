@@ -77177,11 +77177,15 @@ async function loadDiscoverSyncPlaylists() {
                         // Check sync history for this playlist by matching the base name
                         let syncStatus = 'never';
                         let lastSynced = null;
+                        let matchedTracks = 0;
+                        let totalSyncTracks = 0;
                         for (const entry of historyEntries) {
                             const eName = entry.playlist_name || '';
                             if (eName === baseName || eName.startsWith(baseName)) {
                                 syncStatus = 'synced';
                                 lastSynced = entry.completed_at || entry.started_at || entry.created_at;
+                                matchedTracks = entry.tracks_found || 0;
+                                totalSyncTracks = entry.total_tracks || 0;
                                 break;
                             }
                         }
@@ -77194,6 +77198,8 @@ async function loadDiscoverSyncPlaylists() {
                             track_count: trackCount,
                             sync_status: syncStatus,
                             last_synced: lastSynced,
+                            matched_tracks: matchedTracks,
+                            total_sync_tracks: totalSyncTracks,
                             auto_update: !!lbAutoSettings[lbType],
                             virtual_id: `discover_listenbrainz_${mbid}`,
                             _lb_mbid: mbid,
@@ -77223,8 +77229,13 @@ function renderDiscoverSyncCard(playlist, container, sourceLabel) {
 
     const statusClass = playlist.sync_status === 'syncing' ? 'syncing' :
                          playlist.sync_status === 'synced' ? 'synced' : 'not-synced';
-    const statusText = playlist.sync_status === 'syncing' ? 'Syncing...' :
-                        playlist.sync_status === 'synced' ? 'Synced' : 'Not synced';
+    let statusText = playlist.sync_status === 'syncing' ? 'Syncing...' :
+                     playlist.sync_status === 'synced' ? 'Synced' : 'Not synced';
+
+    // Show matched/total counts if available
+    if (playlist.sync_status === 'synced' && playlist.total_sync_tracks > 0) {
+        statusText = `Synced ${playlist.matched_tracks}/${playlist.total_sync_tracks}`;
+    }
 
     const trackLabel = isEmpty ? 'No tracks yet' : `${playlist.track_count} tracks`;
 

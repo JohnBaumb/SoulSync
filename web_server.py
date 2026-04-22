@@ -43318,6 +43318,8 @@ def get_discover_synced_playlists():
             virtual_id = f'discover_{ptype}'
             sync_status = 'never'
             last_synced = None
+            matched_tracks = 0
+            total_sync_tracks = 0
 
             with sync_lock:
                 state = sync_states.get(virtual_id)
@@ -43331,6 +43333,8 @@ def get_discover_synced_playlists():
                         if entry.get('playlist_name') == pt['name'] or entry.get('playlist_id', '').startswith(virtual_id):
                             sync_status = 'synced'
                             last_synced = entry.get('completed_at') or entry.get('created_at')
+                            matched_tracks = entry.get('tracks_found') or 0
+                            total_sync_tracks = entry.get('total_tracks') or 0
                             break
                 except Exception:
                     pass
@@ -43342,6 +43346,8 @@ def get_discover_synced_playlists():
                 'track_count': track_count,
                 'sync_status': sync_status,
                 'last_synced': last_synced,
+                'matched_tracks': matched_tracks,
+                'total_sync_tracks': total_sync_tracks,
                 'auto_update': bool(auto_update),
                 'virtual_id': virtual_id,
             })
