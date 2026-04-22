@@ -31553,6 +31553,15 @@ def _check_batch_completion_v2(batch_id):
                                 })
                         except Exception:
                             pass
+
+                    # Push discover playlists to media server after downloads complete
+                    playlist_id = batch.get('playlist_id')
+                    if playlist_id and playlist_id.startswith('discover_'):
+                        threading.Thread(
+                            target=_push_discover_playlist_to_server,
+                            args=(batch_id, batch),
+                            daemon=True
+                        ).start()
                 else:
                     logger.warning(f"[Completion Check V2] Batch {batch_id} already marked complete - skipping duplicate processing")
                     return True  # Already complete
@@ -32095,6 +32104,106 @@ def _record_sync_history_completion(batch_id, batch):
         logger.warning(f"Failed to record sync history completion: {e}")
         import traceback
         traceback.print_exc()
+
+
+def _push_discover_playlist_to_server(batch_id, batch):
+    """After a discover batch completes, push the playlist to the media server.
+    Runs in a background thread. Triggers a scan, waits, then searches for tracks and creates/updates the playlist."""
+    try:
+        playlist_id = batch.get('playlist_id', '')
+        playlist_name = batch.get('playlist_name', '')
+        if not playlist_name:
+            return
+
+        analysis_results = batch.get('analysis_results', [])
+        if not analysis_results:
+            logger.info(f"[DiscoverPush] No analysis results for {playlist_name} - skipping server push")
+            return
+
+        # Build list of tracks that should be in the playlist (found in library OR successfully downloaded)
+        queue = batch.get('queue', [])
+        download_status_map = {}
+        with tasks_lock:
+            for task_id in queue:
+                task = download_tasks.get(task_id, {})
+                ti = task.get('track_index')
+                if ti is not None:
+                    download_status_map[ti] = task.get('status', 'unknown')
+
+        tracks_to_find = []
+        for res in analysis_results:
+            idx = res.get('track_index', 0)
+            found = res.get('found', False)
+            dl_status = download_status_map.get(idx)
+            if found or dl_status == 'completed':
+                track_data = res.get('track', {})
+                artists = track_data.get('artists', [])
+                if artists:
+                    first = artists[0]
+                    artist_name = first.get('name', first) if isinstance(first, dict) else str(first)
+                else:
+                    artist_name = ''
+                tracks_to_find.append({
+                    'index': idx,
+                    'title': track_data.get('name', ''),
+                    'artist': artist_name,
+                })
+
+        if not tracks_to_find:
+            logger.info(f"[DiscoverPush] No tracks to push for {playlist_name}")
+            return
+
+        logger.info(f"[DiscoverPush] {playlist_name}: {len(tracks_to_find)} tracks to push to server, triggering scan first")
+
+        # Trigger a library scan so newly downloaded tracks are indexed
+        if navidrome_client and navidrome_client.is_connected():
+            navidrome_client.trigger_library_scan()
+        elif hasattr(web_scan_manager, 'request_scan'):
+            web_scan_manager.request_scan(f"Discover playlist push: {playlist_name}")
+
+        # Wait for scan to finish (poll every 5s, up to 90s)
+        if navidrome_client and navidrome_client.is_connected():
+            for _ in range(18):
+                time.sleep(5)
+                if not navidrome_client.is_library_scanning():
+                    break
+            logger.info(f"[DiscoverPush] Scan complete, searching for tracks")
+        else:
+            time.sleep(30)
+
+        # Search for each track on the media server
+        matched_server_tracks = []
+        if navidrome_client and navidrome_client.is_connected():
+            for t in tracks_to_find:
+                results = navidrome_client.search_tracks(t['title'], t['artist'], limit=5)
+                if results:
+                    # Use the first result's underlying NavidromeTrack for playlist creation
+                    best = results[0]
+                    nav_track = getattr(best, '_original_navidrome_track', None)
+                    if nav_track:
+                        matched_server_tracks.append(nav_track)
+                        logger.debug(f"[DiscoverPush] Matched: '{t['title']}' by '{t['artist']}' → {best.id}")
+                    else:
+                        matched_server_tracks.append(best)
+                else:
+                    logger.info(f"[DiscoverPush] No match for: '{t['title']}' by '{t['artist']}'")
+
+        if not matched_server_tracks:
+            logger.warning(f"[DiscoverPush] No tracks matched on server for {playlist_name}")
+            return
+
+        logger.info(f"[DiscoverPush] Pushing {len(matched_server_tracks)}/{len(tracks_to_find)} tracks to '{playlist_name}' on server")
+        success = navidrome_client.update_playlist(playlist_name, matched_server_tracks)
+        if success:
+            logger.info(f"[DiscoverPush] Successfully pushed '{playlist_name}' to server with {len(matched_server_tracks)} tracks")
+        else:
+            logger.warning(f"[DiscoverPush] Failed to push '{playlist_name}' to server")
+
+    except Exception as e:
+        logger.error(f"[DiscoverPush] Error pushing playlist to server: {e}")
+        import traceback
+        traceback.print_exc()
+
 
 # ===============================
 # == SERVER PLAYLIST MANAGER ==
