@@ -368,17 +368,22 @@ class WishlistService:
                 else:
                     album_name = str(spotify_track.album)
             
+            # Preserve image URL from Track object
+            track_image_url = getattr(spotify_track, 'image_url', None) or ''
+            album_images = [{'url': track_image_url}] if track_image_url else []
+
             result = {
                 'id': getattr(spotify_track, 'id', None),
                 'name': getattr(spotify_track, 'name', 'Unknown Track'),
                 'artists': artists_list,
-                'album': {'name': album_name},
+                'album': {'name': album_name, 'images': album_images},
                 'duration_ms': getattr(spotify_track, 'duration_ms', 0),
                 'preview_url': getattr(spotify_track, 'preview_url', None),
                 'external_urls': getattr(spotify_track, 'external_urls', {}),
                 'popularity': getattr(spotify_track, 'popularity', 0),
                 'track_number': getattr(spotify_track, 'track_number', 1),
-                'disc_number': getattr(spotify_track, 'disc_number', 1)
+                'disc_number': getattr(spotify_track, 'disc_number', 1),
+                'image_url': track_image_url
             }
             
             logger.debug(

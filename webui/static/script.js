@@ -11256,7 +11256,8 @@ async function loadBeatportChartsFromBackend() {
                                         artists: track.artists,
                                         album: track.album || 'Unknown Album',
                                         duration_ms: track.duration_ms || 0,
-                                        external_urls: track.external_urls || {}
+                                        external_urls: track.external_urls || {},
+                                        image_url: track.image_url || ''
                                     };
                                 });
                         }
@@ -30662,7 +30663,8 @@ async function rehydrateBeatportDownloadModal(chartHash, ytState) {
                     artists: track.artists,
                     album: track.album || 'Unknown Album',
                     duration_ms: track.duration_ms || 0,
-                    external_urls: track.external_urls || {}
+                    external_urls: track.external_urls || {},
+                    image_url: track.image_url || ''
                 };
             });
 
@@ -57997,7 +57999,8 @@ async function openDownloadModalForListenBrainzPlaylist(identifier, title) {
                                     artists: track.artists,
                                     album: track.album || 'Unknown Album',
                                     duration_ms: track.duration_ms || 0,
-                                    external_urls: track.external_urls || {}
+                                    external_urls: track.external_urls || {},
+                                    image_url: track.image_url || ''
                                 };
                             });
                     }
@@ -63048,7 +63051,8 @@ async function rehydrateDiscoverDownloadModal(playlistId) {
                             artists: artistsArray,
                             album: track.album || { name: 'Unknown Album', images: [] },
                             duration_ms: track.duration_ms || 0,
-                            external_urls: track.external_urls || {}
+                            external_urls: track.external_urls || {},
+                            image_url: track.image_url || ''
                         };
                     });
 
@@ -77226,7 +77230,31 @@ async function toggleDiscoverAutoUpdate(playlistType, enabled) {
     }
 }
 
+const _discoverSyncQueue = [];
+let _discoverSyncRunning = false;
+
 async function syncDiscoverPlaylistFromTab(playlistType, playlistName) {
+    // Serialize sync operations to avoid concurrent backend contention
+    return new Promise((resolve) => {
+        _discoverSyncQueue.push({ playlistType, playlistName, resolve });
+        _processDiscoverSyncQueue();
+    });
+}
+
+async function _processDiscoverSyncQueue() {
+    if (_discoverSyncRunning || _discoverSyncQueue.length === 0) return;
+    _discoverSyncRunning = true;
+    const { playlistType, playlistName, resolve } = _discoverSyncQueue.shift();
+    try {
+        await _doSyncDiscoverPlaylist(playlistType, playlistName);
+    } finally {
+        _discoverSyncRunning = false;
+        resolve();
+        _processDiscoverSyncQueue();
+    }
+}
+
+async function _doSyncDiscoverPlaylist(playlistType, playlistName) {
     const btn = document.getElementById(`discover-sync-btn-${playlistType}`);
     if (btn) {
         btn.disabled = true;
@@ -77396,8 +77424,8 @@ function _discoverPlaylistApiUrl(playlistType) {
     }
     const map = {
         release_radar: '/api/discover/release-radar',
-        discovery_weekly: '/api/discover/discovery-weekly',
-        seasonal_playlist: '/api/discover/seasonal',
+        discovery_weekly: '/api/discover/weekly',
+        seasonal_playlist: '/api/discover/seasonal/current-playlist',
         popular_picks: '/api/discover/personalized/popular-picks',
         hidden_gems: '/api/discover/personalized/hidden-gems',
         discovery_shuffle: '/api/discover/personalized/discovery-shuffle',

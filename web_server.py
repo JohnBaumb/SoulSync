@@ -30813,7 +30813,7 @@ def get_all_downloads_unified():
                     else:
                         album = str(raw_album) if raw_album else ''
 
-                    artwork = track_info.get('artwork_url') or track_info.get('image_url') or track_info.get('album_art') or ''
+                    artwork = track_info.get('artwork_url') or track_info.get('image_url') or track_info.get('album_art') or track_info.get('album_cover_url') or ''
                     # Try album images
                     if not artwork:
                         raw_alb = track_info.get('album')
@@ -30821,6 +30821,24 @@ def get_all_downloads_unified():
                             images = raw_alb.get('images') or []
                             if images and isinstance(images, list) and len(images) > 0:
                                 artwork = images[0].get('url', '') if isinstance(images[0], dict) else str(images[0])
+                    # Try _explicit_album_context images (wishlist/album downloads)
+                    if not artwork:
+                        explicit_alb = track_info.get('_explicit_album_context')
+                        if isinstance(explicit_alb, dict):
+                            images = explicit_alb.get('images') or []
+                            if images and isinstance(images, list) and len(images) > 0:
+                                artwork = images[0].get('url', '') if isinstance(images[0], dict) else str(images[0])
+                    # Try spotify_data nested image (discovery/matched tracks)
+                    if not artwork:
+                        sp_data = track_info.get('spotify_data')
+                        if isinstance(sp_data, dict):
+                            artwork = sp_data.get('image_url') or ''
+                            if not artwork:
+                                sp_alb = sp_data.get('album')
+                                if isinstance(sp_alb, dict):
+                                    sp_imgs = sp_alb.get('images') or []
+                                    if sp_imgs and isinstance(sp_imgs, list) and len(sp_imgs) > 0:
+                                        artwork = sp_imgs[0].get('url', '') if isinstance(sp_imgs[0], dict) else str(sp_imgs[0])
 
                 status = task.get('status', 'queued')
                 # Determine download progress percentage
@@ -43227,8 +43245,10 @@ def get_discover_synced_playlists():
                     track_count = 0
             else:
                 # Personalized playlists come from the discovery pool
-                # Only show count if pool actually has data
-                if pool_count > 0:
+                # familiar_favorites is not implemented — always report 0
+                if ptype == 'familiar_favorites':
+                    track_count = 0
+                elif pool_count > 0:
                     track_count = min(50, pool_count)
                 else:
                     track_count = 0
@@ -43389,6 +43409,66 @@ def diagnose_discover_data():
 # ========================================
 # SEASONAL DISCOVERY ENDPOINTS
 # ========================================
+
+@app.route('/api/discover/seasonal/current-playlist', methods=['GET'])
+def get_current_seasonal_playlist():
+    """Auto-detect current season and return its playlist tracks"""
+    try:
+        from core.seasonal_discovery import get_seasonal_discovery_service, SEASONAL_CONFIG
+
+        database = get_database()
+        seasonal_service = get_seasonal_discovery_service(spotify_client, database)
+        current_season = seasonal_service.get_current_season()
+
+        if not current_season or current_season not in SEASONAL_CONFIG:
+            return jsonify({"success": True, "tracks": []})
+
+        active_source = _get_active_discovery_source()
+        track_ids = seasonal_service.get_curated_seasonal_playlist(current_season, source=active_source)
+
+        if not track_ids:
+            return jsonify({"success": True, "tracks": []})
+
+        track_id_col = 'spotify_track_id' if active_source == 'spotify' else 'itunes_track_id'
+        tracks = []
+        with database._get_connection() as conn:
+            cursor = conn.cursor()
+            for track_id in track_ids:
+                cursor.execute("""
+                    SELECT spotify_track_id, track_name, artist_name, album_name,
+                           album_cover_url, duration_ms, popularity, track_data_json
+                    FROM seasonal_tracks WHERE spotify_track_id = ? AND source = ?
+                """, (track_id, active_source))
+                result = cursor.fetchone()
+                if not result:
+                    cursor.execute(f"""
+                        SELECT {track_id_col} as spotify_track_id, track_name, artist_name, album_name,
+                               album_cover_url, duration_ms, popularity, track_data_json
+                        FROM discovery_pool WHERE {track_id_col} = ? AND source = ?
+                    """, (track_id, active_source))
+                    result = cursor.fetchone()
+                if result:
+                    track_dict = dict(result)
+                    if track_dict.get('track_data_json'):
+                        try:
+                            import json
+                            track_dict['track_data_json'] = json.loads(track_dict['track_data_json'])
+                        except:
+                            pass
+                    tracks.append(track_dict)
+
+        config = SEASONAL_CONFIG[current_season]
+        return jsonify({
+            "success": True,
+            "season": current_season,
+            "name": config['name'],
+            "tracks": tracks
+        })
+    except Exception as e:
+        logger.error(f"Error getting current seasonal playlist: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/discover/seasonal/current', methods=['GET'])
 def get_current_seasonal_content():
