@@ -2541,6 +2541,8 @@ def _get_file_lock(file_path):
 # --- Download Missing Tracks Modal State Management ---
 # Thread-safe state tracking for modal download functionality with batch management
 missing_download_executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="MissingTrackWorker")
+# Separate executor for analysis to prevent starvation when download workers are busy
+analysis_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="AnalysisWorker")
 download_tasks = {}  # task_id -> task state dict
 download_batches = {}  # batch_id -> {queue, active_count, max_concurrent}
 tasks_lock = threading.Lock()
@@ -3869,6 +3871,7 @@ def _shutdown_runtime_components():
         (retag_executor, "retag executor"),
         (sync_executor, "sync executor"),
         (missing_download_executor, "missing download executor"),
+        (analysis_executor, "analysis executor"),
         (tidal_discovery_executor, "tidal discovery executor"),
         (deezer_discovery_executor, "deezer discovery executor"),
         (spotify_public_discovery_executor, "spotify public discovery executor"),
@@ -28290,7 +28293,7 @@ def _submit_or_queue_batch(batch_id, playlist_id, tracks):
             name = download_batches[batch_id].get('playlist_name', batch_id)
             logger.info(f"[Queue] Batch {batch_id} ('{name}') queued — {active_analysis_count} analysis already running")
             return
-    missing_download_executor.submit(_run_full_missing_tracks_process, batch_id, playlist_id, tracks)
+    analysis_executor.submit(_run_full_missing_tracks_process, batch_id, playlist_id, tracks)
 
 
 def _promote_queued_batches():
@@ -28308,7 +28311,7 @@ def _promote_queued_batches():
             queued_pid = batch.pop('_queued_playlist_id', None)
             if queued_tracks and queued_pid:
                 logger.info(f"[Queue] Promoting batch {bid} ('{batch.get('playlist_name')}') from queued -> analysis")
-                missing_download_executor.submit(_run_full_missing_tracks_process, bid, queued_pid, queued_tracks)
+                analysis_executor.submit(_run_full_missing_tracks_process, bid, queued_pid, queued_tracks)
                 active_analysis_count += 1
                 if active_analysis_count >= 3:
                     break
