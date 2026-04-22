@@ -43350,8 +43350,17 @@ def get_discover_synced_playlists():
                         if entry.get('playlist_name') == pt['name'] or entry.get('playlist_id', '').startswith(virtual_id):
                             sync_status = 'synced'
                             last_synced = entry.get('completed_at') or entry.get('started_at')
-                            matched_tracks = (entry.get('tracks_found') or 0) + (entry.get('tracks_downloaded') or 0)
-                            total_sync_tracks = entry.get('total_tracks') or 0
+                            synced_total = entry.get('total_tracks') or 0
+                            synced_found = (entry.get('tracks_found') or 0) + (entry.get('tracks_downloaded') or 0)
+                            # synced_total is just the tracks sent to sync (the missing ones).
+                            # track_count is the full playlist size. The difference is already-owned.
+                            if track_count > 0 and synced_total > 0 and synced_total <= track_count:
+                                already_owned = track_count - synced_total
+                                matched_tracks = already_owned + synced_found
+                                total_sync_tracks = track_count
+                            else:
+                                matched_tracks = synced_found
+                                total_sync_tracks = synced_total
                             break
                 except Exception:
                     pass
