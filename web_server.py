@@ -31529,6 +31529,9 @@ def _check_batch_completion_v2(batch_id):
                     batch['phase'] = 'complete'
                     batch['completion_time'] = time.time()  # Track when batch completed
 
+                    # Record sync history completion
+                    _record_sync_history_completion(batch_id, batch)
+
                     # Add activity for batch completion
                     playlist_name = batch.get('playlist_name', 'Unknown Playlist')
                     failed_count = len(batch.get('permanently_failed_tracks', []))
@@ -32021,6 +32024,10 @@ def _record_sync_history_completion(batch_id, batch):
         completed_count = 0
         failed_count = len(batch.get('permanently_failed_tracks', []))
 
+        logger.warning(f"[SyncHistory] Recording completion for batch {batch_id}: "
+                      f"analysis_results={len(analysis_results)}, tracks_found={tracks_found}, "
+                      f"queue_len={len(queue)}, failed={failed_count}")
+
         # Build download status map: track_index → status
         download_status_map = {}
         for task_id in queue:
@@ -32030,6 +32037,9 @@ def _record_sync_history_completion(batch_id, batch):
                 download_status_map[ti] = task.get('status', 'unknown')
             if task.get('status') == 'completed':
                 completed_count += 1
+
+        logger.warning(f"[SyncHistory] Batch {batch_id}: completed_downloads={completed_count}, "
+                      f"download_status_map_size={len(download_status_map)}")
 
         # Build per-track results from analysis
         track_results = []
@@ -32070,14 +32080,18 @@ def _record_sync_history_completion(batch_id, batch):
             track_results.append(entry)
 
         db = MusicDatabase()
-        db.update_sync_history_completion(batch_id, tracks_found, completed_count, failed_count)
+        updated = db.update_sync_history_completion(batch_id, tracks_found, completed_count, failed_count)
+        logger.warning(f"[SyncHistory] DB update for batch {batch_id}: updated={updated}")
 
         # Save per-track results
         if track_results:
-            db.update_sync_history_track_results(batch_id, json.dumps(track_results))
+            tr_updated = db.update_sync_history_track_results(batch_id, json.dumps(track_results))
+            logger.warning(f"[SyncHistory] Track results saved for batch {batch_id}: updated={tr_updated}, count={len(track_results)}")
 
     except Exception as e:
         logger.warning(f"Failed to record sync history completion: {e}")
+        import traceback
+        traceback.print_exc()
 
 # ===============================
 # == SERVER PLAYLIST MANAGER ==

@@ -77469,12 +77469,24 @@ function pollDiscoverBatchFromTab(playlistType, batchId, playlistName) {
                 const btn = document.getElementById(`discover-sync-btn-${playlistType}`);
                 if (btn) { btn.disabled = false; btn.textContent = '\u27f3 Sync Now'; }
 
+                // Extract matched/total from analysis_results
+                const analysisResults = data.analysis_results || [];
+                const totalTracks = analysisResults.length;
+                const matchedTracks = analysisResults.filter(r => r.found).length;
+                const tasks = data.tasks || [];
+                const downloaded = tasks.filter(t => t.status === 'completed').length;
+                const failed = tasks.filter(t => t.status === 'failed' || t.status === 'not_found').length;
+
                 const card = document.getElementById(`discover-sync-card-${playlistType}`);
                 if (card) {
                     const statusEl = card.querySelector('.discover-sync-status');
                     if (statusEl) {
                         statusEl.className = `discover-sync-status ${phase === 'complete' ? 'synced' : 'not-synced'}`;
-                        statusEl.textContent = phase === 'complete' ? 'Synced' : (phase === 'cancelled' ? 'Cancelled' : 'Failed');
+                        if (phase === 'complete' && totalTracks > 0) {
+                            statusEl.textContent = `Synced ${matchedTracks}/${totalTracks}`;
+                        } else {
+                            statusEl.textContent = phase === 'complete' ? 'Synced' : (phase === 'cancelled' ? 'Cancelled' : 'Failed');
+                        }
                     }
                     const lastSyncedEl = card.querySelector('.discover-sync-last-synced');
                     if (lastSyncedEl && phase === 'complete') {
@@ -77483,7 +77495,16 @@ function pollDiscoverBatchFromTab(playlistType, batchId, playlistName) {
                 }
 
                 if (phase === 'complete') {
-                    showToast(`${playlistName} download complete!`, 'success');
+                    if (totalTracks > 0) {
+                        const missing = totalTracks - matchedTracks;
+                        let msg = `${playlistName}: ${matchedTracks}/${totalTracks} matched`;
+                        if (downloaded > 0) msg += `, ${downloaded} downloaded`;
+                        if (failed > 0) msg += `, ${failed} failed`;
+                        if (missing === 0) msg += ' - all owned!';
+                        showToast(msg, 'success');
+                    } else {
+                        showToast(`${playlistName} download complete!`, 'success');
+                    }
                 } else if (phase !== 'cancelled') {
                     showToast(`${playlistName} download failed`, 'error');
                 }
