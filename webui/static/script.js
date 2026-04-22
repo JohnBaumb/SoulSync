@@ -76488,7 +76488,7 @@ function adlSetFilter(filter) {
 
 async function _adlFetch() {
     try {
-        const resp = await fetch('/api/downloads/all?limit=500');
+        const resp = await fetch('/api/downloads/all?limit=300');
         const data = await resp.json();
         if (data.success) {
             _adlData = data.downloads || [];
