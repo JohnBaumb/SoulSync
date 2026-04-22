@@ -77478,12 +77478,13 @@ function pollDiscoverBatchFromTab(playlistType, batchId, playlistName) {
                 const failed = tasks.filter(t => t.status === 'failed' || t.status === 'not_found').length;
 
                 const card = document.getElementById(`discover-sync-card-${playlistType}`);
+                const syncedCount = matchedTracks + downloaded;
                 if (card) {
                     const statusEl = card.querySelector('.discover-sync-status');
                     if (statusEl) {
                         statusEl.className = `discover-sync-status ${phase === 'complete' ? 'synced' : 'not-synced'}`;
                         if (phase === 'complete' && totalTracks > 0) {
-                            statusEl.textContent = `Synced ${matchedTracks}/${totalTracks}`;
+                            statusEl.textContent = `Synced ${syncedCount}/${totalTracks}`;
                         } else {
                             statusEl.textContent = phase === 'complete' ? 'Synced' : (phase === 'cancelled' ? 'Cancelled' : 'Failed');
                         }
@@ -77496,8 +77497,8 @@ function pollDiscoverBatchFromTab(playlistType, batchId, playlistName) {
 
                 if (phase === 'complete') {
                     if (totalTracks > 0) {
-                        const missing = totalTracks - matchedTracks;
-                        let msg = `${playlistName}: ${matchedTracks}/${totalTracks} matched`;
+                        const missing = totalTracks - syncedCount;
+                        let msg = `${playlistName}: ${syncedCount}/${totalTracks} in library`;
                         if (downloaded > 0) msg += `, ${downloaded} downloaded`;
                         if (failed > 0) msg += `, ${failed} failed`;
                         if (missing === 0) msg += ' - all owned!';

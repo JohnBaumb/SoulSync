@@ -43350,7 +43350,7 @@ def get_discover_synced_playlists():
                         if entry.get('playlist_name') == pt['name'] or entry.get('playlist_id', '').startswith(virtual_id):
                             sync_status = 'synced'
                             last_synced = entry.get('completed_at') or entry.get('started_at')
-                            matched_tracks = entry.get('tracks_found') or 0
+                            matched_tracks = (entry.get('tracks_found') or 0) + (entry.get('tracks_downloaded') or 0)
                             total_sync_tracks = entry.get('total_tracks') or 0
                             break
                 except Exception:
