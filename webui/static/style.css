@@ -2482,7 +2482,7 @@ body.helper-mode-active #dashboard-activity-feed:hover {
 .helper-first-launch-tip {
     position: fixed;
     bottom: 34px;
-    right: 84px;
+    right: 136px;
     padding: 8px 16px;
     background: rgba(16, 16, 16, 0.95);
     border: 1px solid rgba(var(--accent-rgb), 0.3);
