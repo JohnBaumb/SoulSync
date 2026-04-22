@@ -30813,7 +30813,7 @@ def get_all_downloads_unified():
                     else:
                         album = str(raw_album) if raw_album else ''
 
-                    artwork = track_info.get('artwork_url') or track_info.get('image_url') or track_info.get('album_art') or ''
+                    artwork = track_info.get('artwork_url') or track_info.get('image_url') or track_info.get('album_art') or track_info.get('album_cover_url') or ''
                     # Try album images
                     if not artwork:
                         raw_alb = track_info.get('album')
@@ -30821,6 +30821,24 @@ def get_all_downloads_unified():
                             images = raw_alb.get('images') or []
                             if images and isinstance(images, list) and len(images) > 0:
                                 artwork = images[0].get('url', '') if isinstance(images[0], dict) else str(images[0])
+                    # Try _explicit_album_context images (wishlist/album downloads)
+                    if not artwork:
+                        explicit_alb = track_info.get('_explicit_album_context')
+                        if isinstance(explicit_alb, dict):
+                            images = explicit_alb.get('images') or []
+                            if images and isinstance(images, list) and len(images) > 0:
+                                artwork = images[0].get('url', '') if isinstance(images[0], dict) else str(images[0])
+                    # Try spotify_data nested image (discovery/matched tracks)
+                    if not artwork:
+                        sp_data = track_info.get('spotify_data')
+                        if isinstance(sp_data, dict):
+                            artwork = sp_data.get('image_url') or ''
+                            if not artwork:
+                                sp_alb = sp_data.get('album')
+                                if isinstance(sp_alb, dict):
+                                    sp_imgs = sp_alb.get('images') or []
+                                    if sp_imgs and isinstance(sp_imgs, list) and len(sp_imgs) > 0:
+                                        artwork = sp_imgs[0].get('url', '') if isinstance(sp_imgs[0], dict) else str(sp_imgs[0])
 
                 status = task.get('status', 'queued')
                 # Determine download progress percentage
