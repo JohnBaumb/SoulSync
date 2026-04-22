@@ -24181,7 +24181,7 @@ def _process_wishlist_automatically(automation_id=None):
                                          log_line=f'Started batch: {len(wishlist_tracks)} {current_cycle}', log_type='success')
             
             # Submit the wishlist processing job using existing infrastructure
-            missing_download_executor.submit(_run_full_missing_tracks_process, batch_id, playlist_id, wishlist_tracks)
+            _submit_or_queue_batch(batch_id, playlist_id, wishlist_tracks)
             
             # Don't mark auto_processing as False here - let completion handler do it
             
@@ -25378,7 +25378,7 @@ def start_wishlist_missing_downloads():
             }
 
         # Submit the wishlist processing job using the same processing function
-        missing_download_executor.submit(_run_full_missing_tracks_process, batch_id, playlist_id, wishlist_tracks)
+        _submit_or_queue_batch(batch_id, playlist_id, wishlist_tracks)
 
         return jsonify({
             "success": True,
@@ -28276,6 +28276,21 @@ def _on_download_completed(batch_id, task_id, success=True):
     # Start next downloads in queue
     logger.info(f"[Batch Manager] Starting next batch for {batch_id}")
     _start_next_batch_of_downloads(batch_id)
+
+
+def _submit_or_queue_batch(batch_id, playlist_id, tracks):
+    """Submit a batch for analysis, or queue it if 3 analysis slots are full."""
+    with tasks_lock:
+        active_analysis_count = sum(1 for b in download_batches.values()
+                                    if b.get('phase') == 'analysis')
+        if active_analysis_count >= 3:
+            download_batches[batch_id]['phase'] = 'queued'
+            download_batches[batch_id]['_queued_tracks'] = tracks
+            download_batches[batch_id]['_queued_playlist_id'] = playlist_id
+            name = download_batches[batch_id].get('playlist_name', batch_id)
+            logger.info(f"[Queue] Batch {batch_id} ('{name}') queued — {active_analysis_count} analysis already running")
+            return
+    missing_download_executor.submit(_run_full_missing_tracks_process, batch_id, playlist_id, tracks)
 
 
 def _promote_queued_batches():
@@ -32683,20 +32698,11 @@ def start_missing_tracks_process(playlist_id):
     if playlist_folder_mode:
         logger.info(f"[Playlist Folder] Enabled for playlist: '{playlist_name}'")
 
-    # Limit concurrent analysis processes to prevent resource exhaustion.
-    # If at capacity, set the batch to 'queued' phase — a watcher will promote it.
-    queued_for_analysis = False
-    with tasks_lock:
-        active_analysis_count = sum(1 for batch in download_batches.values() 
-                                  if batch.get('phase') == 'analysis')
-        if active_analysis_count >= 3:
-            queued_for_analysis = True
-
     batch_id = str(uuid.uuid4())
 
     with tasks_lock:
         download_batches[batch_id] = {
-            'phase': 'queued' if queued_for_analysis else 'analysis',
+            'phase': 'analysis',
             'playlist_id': playlist_id,
             'playlist_name': playlist_name,
             'queue': [],
@@ -32776,14 +32782,7 @@ def start_missing_tracks_process(playlist_id):
         if '_original_index' not in track:
             track['_original_index'] = i
 
-    if queued_for_analysis:
-        # Stash tracks so the queue watcher can start analysis later
-        with tasks_lock:
-            download_batches[batch_id]['_queued_tracks'] = tracks
-            download_batches[batch_id]['_queued_playlist_id'] = playlist_id
-        logger.info(f"[Queue] Batch {batch_id} ('{playlist_name}') queued — {active_analysis_count} analysis already running")
-    else:
-        missing_download_executor.submit(_run_full_missing_tracks_process, batch_id, playlist_id, tracks)
+    _submit_or_queue_batch(batch_id, playlist_id, tracks)
 
     return jsonify({
         "success": True,
