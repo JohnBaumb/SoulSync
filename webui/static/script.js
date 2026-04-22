@@ -76778,7 +76778,10 @@ function _adlRenderBatchPanel() {
         // Phase label with icon
         let phaseText = '';
         let phaseIcon = '';
-        if (batch.phase === 'analysis') {
+        if (batch.phase === 'queued') {
+            phaseText = 'Queued';
+            phaseIcon = '<span style="color:#eab308;margin-right:4px">⏳</span>';
+        } else if (batch.phase === 'analysis') {
             phaseText = 'Analyzing...';
             phaseIcon = '<span class="adl-spinner" style="margin-right:4px"></span>';
         } else if (batch.phase === 'downloading') {

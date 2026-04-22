@@ -28277,6 +28277,28 @@ def _on_download_completed(batch_id, task_id, success=True):
     logger.info(f"[Batch Manager] Starting next batch for {batch_id}")
     _start_next_batch_of_downloads(batch_id)
 
+
+def _promote_queued_batches():
+    """Check for queued batches and promote them to analysis if capacity allows."""
+    with tasks_lock:
+        active_analysis_count = sum(1 for b in download_batches.values()
+                                    if b.get('phase') == 'analysis')
+        if active_analysis_count >= 3:
+            return
+        # Find batches waiting in queue, ordered by creation (dict insertion order)
+        for bid, batch in list(download_batches.items()):
+            if batch.get('phase') != 'queued':
+                continue
+            queued_tracks = batch.pop('_queued_tracks', None)
+            queued_pid = batch.pop('_queued_playlist_id', None)
+            if queued_tracks and queued_pid:
+                logger.info(f"[Queue] Promoting batch {bid} ('{batch.get('playlist_name')}') from queued -> analysis")
+                missing_download_executor.submit(_run_full_missing_tracks_process, bid, queued_pid, queued_tracks)
+                active_analysis_count += 1
+                if active_analysis_count >= 3:
+                    break
+
+
 def _run_full_missing_tracks_process(batch_id, playlist_id, tracks_json):
     """
     A master worker that handles the entire missing tracks process:
@@ -28665,6 +28687,12 @@ def _run_full_missing_tracks_process(batch_id, playlist_id, tracks_json):
             if batch_id not in download_batches: return
 
             download_batches[batch_id]['phase'] = 'downloading'
+
+        # Analysis slot freed — promote any queued batches
+        _promote_queued_batches()
+
+        with tasks_lock:
+            if batch_id not in download_batches: return
 
             # Store album pre-flight results on batch for source reuse
             if preflight_source and preflight_tracks:
@@ -32655,21 +32683,20 @@ def start_missing_tracks_process(playlist_id):
     if playlist_folder_mode:
         logger.info(f"[Playlist Folder] Enabled for playlist: '{playlist_name}'")
 
-    # Limit concurrent analysis processes to prevent resource exhaustion
+    # Limit concurrent analysis processes to prevent resource exhaustion.
+    # If at capacity, set the batch to 'queued' phase — a watcher will promote it.
+    queued_for_analysis = False
     with tasks_lock:
         active_analysis_count = sum(1 for batch in download_batches.values() 
                                   if batch.get('phase') == 'analysis')
-        if active_analysis_count >= 3:  # Allow max 3 concurrent analysis processes
-            return jsonify({
-                "success": False, 
-                "error": "Too many analysis processes running. Please wait for one to complete."
-            }), 429
+        if active_analysis_count >= 3:
+            queued_for_analysis = True
 
     batch_id = str(uuid.uuid4())
 
     with tasks_lock:
         download_batches[batch_id] = {
-            'phase': 'analysis',
+            'phase': 'queued' if queued_for_analysis else 'analysis',
             'playlist_id': playlist_id,
             'playlist_name': playlist_name,
             'queue': [],
@@ -32749,7 +32776,14 @@ def start_missing_tracks_process(playlist_id):
         if '_original_index' not in track:
             track['_original_index'] = i
 
-    missing_download_executor.submit(_run_full_missing_tracks_process, batch_id, playlist_id, tracks)
+    if queued_for_analysis:
+        # Stash tracks so the queue watcher can start analysis later
+        with tasks_lock:
+            download_batches[batch_id]['_queued_tracks'] = tracks
+            download_batches[batch_id]['_queued_playlist_id'] = playlist_id
+        logger.info(f"[Queue] Batch {batch_id} ('{playlist_name}') queued — {active_analysis_count} analysis already running")
+    else:
+        missing_download_executor.submit(_run_full_missing_tracks_process, batch_id, playlist_id, tracks)
 
     return jsonify({
         "success": True,
