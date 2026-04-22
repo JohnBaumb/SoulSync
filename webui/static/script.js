@@ -31078,7 +31078,8 @@ async function startBeatportDownloadMissing(urlHash) {
                     artists: track.artists,
                     album: albumForReturn,
                     duration_ms: track.duration_ms || 0,
-                    external_urls: track.external_urls || {}
+                    external_urls: track.external_urls || {},
+                    image_url: track.image_url || ''
                 };
             });
 
@@ -58534,7 +58535,8 @@ async function openDownloadModalForSeasonalPlaylist() {
         id: track.spotify_track_id,
         name: track.track_name,
         artists: [{ name: track.artist_name }],
-        album: { name: track.album_name }
+        album: { name: track.album_name },
+        image_url: track.album_cover_url || track.image_url || ''
     }));
 
     openDownloadMissingModal(tracks, `${currentSeasonKey} Seasonal Mix`);
@@ -58559,7 +58561,8 @@ async function syncSeasonalPlaylist() {
             name: track.track_name,
             artists: [{ name: track.artist_name }],
             album: { name: track.album_name },
-            duration_ms: track.duration_ms
+            duration_ms: track.duration_ms,
+            image_url: track.album_cover_url || track.image_url || ''
         }))
     };
 
