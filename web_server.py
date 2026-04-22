@@ -30878,6 +30878,34 @@ def get_all_downloads_unified():
         # Sort: active first (by priority), then by timestamp desc within each group
         items.sort(key=lambda x: (x['priority'], -x['timestamp']))
 
+        # POST-LOCK: Enrich missing artwork from metadata cache (handles legacy
+        # wishlist tracks that were stored without image data)
+        items_needing_art = [it for it in items if not it.get('artwork') and it.get('title')]
+        if items_needing_art:
+            try:
+                database = get_database()
+                # Batch lookup by track name — metadata cache has deezer/itunes images
+                track_names = list({it['title'] for it in items_needing_art if it['title']})
+                if track_names:
+                    placeholders = ','.join('?' for _ in track_names)
+                    with database._get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(f"""
+                            SELECT name, image_url FROM metadata_cache_entities
+                            WHERE entity_type='track' AND name IN ({placeholders})
+                              AND image_url IS NOT NULL AND image_url != ''
+                        """, track_names)
+                        name_to_art = {}
+                        for row in cursor.fetchall():
+                            if row[0] not in name_to_art:
+                                name_to_art[row[0]] = row[1]
+                    for it in items_needing_art:
+                        cached_url = name_to_art.get(it['title'])
+                        if cached_url:
+                            it['artwork'] = cached_url
+            except Exception as cache_err:
+                logger.debug(f"Metadata cache artwork lookup failed: {cache_err}")
+
         # Build batch summaries for the batch context panel
         batch_summaries = []
         with tasks_lock:
