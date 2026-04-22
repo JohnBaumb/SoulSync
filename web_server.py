@@ -31516,8 +31516,27 @@ def _check_batch_completion_v2(batch_id):
                             finished_count += 1
                         else:
                             retrying_count += 1
+                    elif task_status == 'downloading':
+                        task_age = current_time - task.get('status_change_time', current_time)
+                        if no_active_workers and task_age > 300:  # 5 minutes with no worker running
+                            logger.info(f"⏰ [Stuck Detection V2] Task {task_id} stuck in downloading for {task_age:.0f}s with no active workers - forcing failed")
+                            task['status'] = 'failed'
+                            task['error_message'] = f'Download stuck for {int(task_age // 60)} minutes with no active worker — timed out'
+                            finished_count += 1
+                        else:
+                            retrying_count += 1
                     elif task_status in ['completed', 'failed', 'cancelled', 'not_found']:
                         finished_count += 1
+                    else:
+                        # Catch-all for any other non-terminal state (queued, retrying, etc.)
+                        task_age = current_time - task.get('status_change_time', current_time)
+                        if no_active_workers and task_age > 600:  # 10 minutes with no worker
+                            logger.info(f"⏰ [Stuck Detection V2] Task {task_id} stuck in '{task_status}' for {task_age:.0f}s with no active workers - forcing failed")
+                            task['status'] = 'failed'
+                            task['error_message'] = f'Task stuck in {task_status} for {int(task_age // 60)} minutes with no active worker — timed out'
+                            finished_count += 1
+                        else:
+                            retrying_count += 1
                 else:
                     # Task ID in queue but not in download_tasks - treat as completed to prevent blocking
                     logger.warning(f"[Orphaned Task V2] Task {task_id} in queue but not in download_tasks - counting as finished")
