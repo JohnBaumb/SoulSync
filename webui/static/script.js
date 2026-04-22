@@ -77124,6 +77124,12 @@ async function loadDiscoverSyncPlaylists() {
 
         data.playlists.forEach(playlist => {
             renderDiscoverSyncCard(playlist, container, data.source_label || data.source);
+            // Resume polling if there's an active batch for this playlist
+            if (playlist.active_batch_id && playlist.sync_status === 'syncing') {
+                const btn = document.getElementById(`discover-sync-btn-${playlist.type}`);
+                if (btn) { btn.disabled = true; btn.textContent = 'Syncing...'; }
+                pollDiscoverBatchFromTab(playlist.type, playlist.active_batch_id, playlist.name);
+            }
         });
 
         // Also fetch ListenBrainz playlists and add them
@@ -77398,10 +77404,8 @@ async function _doSyncDiscoverPlaylist(playlistType, playlistName) {
                     statusEl.textContent = 'Downloading...';
                 }
             }
-            // Poll the download batch status - read full playlist track count from card
-            const trackCountEl = card?.querySelector('.discover-sync-track-count');
-            const totalPlaylistTracks = parseInt(trackCountEl?.textContent) || syncTracks.length;
-            pollDiscoverBatchFromTab(playlistType, result.batch_id, playlistName, totalPlaylistTracks);
+            // Poll the download batch status
+            pollDiscoverBatchFromTab(playlistType, result.batch_id, playlistName);
         } else {
             showToast(`Download failed: ${result.error || 'Unknown error'}`, 'error');
             if (btn) { btn.disabled = false; btn.textContent = '\u27f3 Sync Now'; }
@@ -77458,7 +77462,7 @@ function pollDiscoverSyncFromTab(playlistType, virtualPlaylistId, playlistName) 
     }, 2000);
 }
 
-function pollDiscoverBatchFromTab(playlistType, batchId, playlistName, totalPlaylistTracks) {
+function pollDiscoverBatchFromTab(playlistType, batchId, playlistName) {
     const pollInterval = setInterval(async () => {
         try {
             const resp = await fetch(`/api/playlists/${batchId}/download_status`);
@@ -77471,26 +77475,22 @@ function pollDiscoverBatchFromTab(playlistType, batchId, playlistName, totalPlay
                 const btn = document.getElementById(`discover-sync-btn-${playlistType}`);
                 if (btn) { btn.disabled = false; btn.textContent = '\u27f3 Sync Now'; }
 
-                // Extract matched/total from analysis_results (only covers the missing subset)
+                // Extract matched/total from analysis_results
                 const analysisResults = data.analysis_results || [];
-                const analyzedCount = analysisResults.length;
+                const totalTracks = analysisResults.length;
                 const matchedTracks = analysisResults.filter(r => r.found).length;
                 const tasks = data.tasks || [];
                 const downloaded = tasks.filter(t => t.status === 'completed').length;
                 const failed = tasks.filter(t => t.status === 'failed' || t.status === 'not_found').length;
 
-                // Total playlist size includes already-owned tracks that weren't sent to sync
-                const displayTotal = totalPlaylistTracks || analyzedCount;
-                const alreadyOwned = (totalPlaylistTracks && totalPlaylistTracks > analyzedCount) ? totalPlaylistTracks - analyzedCount : 0;
-                const syncedCount = alreadyOwned + matchedTracks + downloaded;
-
                 const card = document.getElementById(`discover-sync-card-${playlistType}`);
+                const syncedCount = matchedTracks + downloaded;
                 if (card) {
                     const statusEl = card.querySelector('.discover-sync-status');
                     if (statusEl) {
                         statusEl.className = `discover-sync-status ${phase === 'complete' ? 'synced' : 'not-synced'}`;
-                        if (phase === 'complete' && displayTotal > 0) {
-                            statusEl.textContent = `Synced ${syncedCount}/${displayTotal}`;
+                        if (phase === 'complete' && totalTracks > 0) {
+                            statusEl.textContent = `Synced ${syncedCount}/${totalTracks}`;
                         } else {
                             statusEl.textContent = phase === 'complete' ? 'Synced' : (phase === 'cancelled' ? 'Cancelled' : 'Failed');
                         }
@@ -77502,9 +77502,9 @@ function pollDiscoverBatchFromTab(playlistType, batchId, playlistName, totalPlay
                 }
 
                 if (phase === 'complete') {
-                    if (displayTotal > 0) {
-                        const missing = displayTotal - syncedCount;
-                        let msg = `${playlistName}: ${syncedCount}/${displayTotal} in library`;
+                    if (totalTracks > 0) {
+                        const missing = totalTracks - syncedCount;
+                        let msg = `${playlistName}: ${syncedCount}/${totalTracks} in library`;
                         if (downloaded > 0) msg += `, ${downloaded} downloaded`;
                         if (failed > 0) msg += `, ${failed} failed`;
                         if (missing === 0) msg += ' - all owned!';

@@ -43452,6 +43452,16 @@ def get_discover_synced_playlists():
                 if state and state.get('status') in ('syncing', 'starting'):
                     sync_status = 'syncing'
 
+            # Also check download_batches for active discover batches
+            active_batch_id = None
+            if sync_status == 'never':
+                with tasks_lock:
+                    for bid, b in download_batches.items():
+                        if b.get('playlist_id') == virtual_id and b.get('phase') not in ('complete', 'error', 'cancelled'):
+                            sync_status = 'syncing'
+                            active_batch_id = bid
+                            break
+
             if sync_status == 'never':
                 try:
                     entries, _ = database.get_sync_history(source='discover', page=1, limit=100)
@@ -43480,6 +43490,7 @@ def get_discover_synced_playlists():
                 'total_sync_tracks': total_sync_tracks,
                 'auto_update': bool(auto_update),
                 'virtual_id': virtual_id,
+                'active_batch_id': active_batch_id,
             })
 
         source_labels = {
